@@ -19,8 +19,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { Switch } from "@/components/ui/switch";
 import {
   BarChart2,
+  Bot,
   Calendar,
   CheckCircle2,
   ChevronRight,
@@ -84,7 +86,17 @@ export default function Campaigns() {
     onSuccess: () => {
       toast.success("Campaign updated");
       utils.campaigns.list.invalidate();
+      utils.campaigns.get.invalidate({ id: selectedId! });
     },
+  });
+
+  const toggleAi = trpc.campaigns.toggleAi.useMutation({
+    onSuccess: (_, vars) => {
+      toast(vars.enabled ? "AI enabled for this campaign" : "AI paused for this campaign");
+      utils.campaigns.list.invalidate();
+      utils.campaigns.get.invalidate({ id: vars.id });
+    },
+    onError: () => toast.error("Failed to update AI setting"),
   });
 
   const deleteCampaign = trpc.campaigns.delete.useMutation({
@@ -332,10 +344,26 @@ export default function Campaigns() {
                     {c.status}
                   </Badge>
                 </div>
-                <div className="flex gap-3 mt-1.5 text-xs text-muted-foreground">
-                  <span>{c.sent} sent</span>
-                  <span>{c.replied} replied</span>
-                  <span>{c.sent > 0 ? Math.round((c.replied / c.sent) * 100) : 0}% reply</span>
+                <div className="flex items-center justify-between mt-1.5">
+                  <div className="flex gap-3 text-xs text-muted-foreground">
+                    <span>{c.sent} sent</span>
+                    <span>{c.replied} replied</span>
+                    <span>{c.sent > 0 ? Math.round((c.replied / c.sent) * 100) : 0}% reply</span>
+                  </div>
+                  <div
+                    className="flex items-center gap-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleAi.mutate({ id: c.id, enabled: !c.aiEnabled });
+                    }}
+                  >
+                    <Bot className={`h-3 w-3 ${c.aiEnabled ? "text-primary" : "text-muted-foreground/40"}`} />
+                    <Switch
+                      checked={c.aiEnabled}
+                      className="scale-75 origin-right"
+                      onCheckedChange={(checked) => toggleAi.mutate({ id: c.id, enabled: checked })}
+                    />
+                  </div>
                 </div>
                 {c.scheduledAt && (
                   <p className="text-xs text-muted-foreground mt-1">
@@ -369,12 +397,25 @@ export default function Campaigns() {
                   <span className="text-sm text-muted-foreground capitalize">{selectedCampaign.type}</span>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                {/* AI Toggle for this campaign */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-card">
+                  <Bot className={`h-4 w-4 ${selectedCampaign.aiEnabled ? "text-primary" : "text-muted-foreground"}`} />
+                  <span className="text-xs font-medium">
+                    AI {selectedCampaign.aiEnabled ? "On" : "Off"}
+                  </span>
+                  <Switch
+                    checked={selectedCampaign.aiEnabled}
+                    onCheckedChange={(checked) =>
+                      toggleAi.mutate({ id: selectedId!, enabled: checked })
+                    }
+                  />
+                </div>
                 {selectedCampaign.status === "active" && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => updateCampaign.mutate({ id: selectedId, status: "paused" })}
+                    onClick={() => updateCampaign.mutate({ id: selectedId!, status: "paused" })}
                   >
                     <Pause className="h-4 w-4 mr-1" />
                     Pause
@@ -383,7 +424,7 @@ export default function Campaigns() {
                 {selectedCampaign.status === "paused" && (
                   <Button
                     size="sm"
-                    onClick={() => updateCampaign.mutate({ id: selectedId, status: "active" })}
+                    onClick={() => updateCampaign.mutate({ id: selectedId!, status: "active" })}
                   >
                     <Play className="h-4 w-4 mr-1" />
                     Resume
@@ -393,7 +434,7 @@ export default function Campaigns() {
                   variant="outline"
                   size="sm"
                   className="text-destructive border-destructive/30 hover:bg-destructive/5"
-                  onClick={() => deleteCampaign.mutate({ id: selectedId })}
+                  onClick={() => deleteCampaign.mutate({ id: selectedId! })}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

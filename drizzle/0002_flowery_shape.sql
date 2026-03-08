@@ -1,0 +1,1 @@
+ALTER TABLE `campaigns` ADD `aiEnabled` boolean DEFAULT false NOT NULL;

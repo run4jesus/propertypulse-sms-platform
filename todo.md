@@ -78,3 +78,13 @@
 - [ ] Vitest tests for core routers
 - [ ] TextGrid integration complete
 - [ ] Final checkpoint and delivery
+
+## AI Toggle — Three-Level Control
+- [x] Add aiEnabled column to campaigns table in schema
+- [x] Add aiEnabled column to conversations table in schema (per-conversation)
+- [x] Push schema migrations
+- [x] Add campaign-level AI toggle in Campaigns list and campaign detail
+- [x] Add per-conversation AI toggle in Messenger (wired to DB via conversations.update)
+- [x] AI auto-response logic respects: global OFF = no AI anywhere; campaign ON + global ON = AI responds for that campaign's conversations; per-conversation toggle overrides campaign setting
+- [x] Visual indicator in campaign list showing AI on/off status per campaign (Bot icon + Switch)
+- [x] Visual indicator in messenger inbox showing AI on/off per conversation (Bot icon in list row)

@@ -373,6 +373,7 @@ export const appRouter = router({
         name: z.string().optional(),
         status: z.enum(["draft", "scheduled", "active", "paused", "completed", "cancelled"]).optional(),
         scheduledAt: z.string().optional(),
+        aiEnabled: z.boolean().optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -387,6 +388,13 @@ export const appRouter = router({
             await createCampaignStep({ campaignId: id, ...step });
           }
         }
+        return { success: true };
+      }),
+
+    toggleAi: protectedProcedure
+      .input(z.object({ id: z.number(), enabled: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        await updateCampaign(input.id, ctx.user.id, { aiEnabled: input.enabled });
         return { success: true };
       }),
 

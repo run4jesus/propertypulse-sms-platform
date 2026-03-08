@@ -182,6 +182,8 @@ export const campaigns = mysqlTable("campaigns", {
   phoneNumberId: int("phoneNumberId"),
   scheduledAt: timestamp("scheduledAt"),
   completedAt: timestamp("completedAt"),
+  // AI toggle for this campaign
+  aiEnabled: boolean("aiEnabled").default(false).notNull(),
   // Stats
   totalContacts: int("totalContacts").default(0).notNull(),
   sent: int("sent").default(0).notNull(),

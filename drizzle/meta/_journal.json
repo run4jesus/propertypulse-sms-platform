@@ -15,6 +15,13 @@
       "when": 1772944415231,
       "tag": "0001_fair_toad",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1772945712225,
+      "tag": "0002_flowery_shape",
+      "breakpoints": true
     }
   ]
 }
