@@ -47,10 +47,12 @@ import {
   saveAiSuggestion,
   updateCallRecordingTranscription,
   updateCampaign,
+  updateCampaignTemplate,
   updateContact,
   updateConversation,
   updateUserAiMode,
   updateUserTwilio,
+  deleteCampaignTemplate,
 } from "./db";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
@@ -184,6 +186,9 @@ export const appRouter = router({
         state: z.string().optional(),
         zip: z.string().optional(),
         propertyAddress: z.string().optional(),
+        propertyCity: z.string().optional(),
+        propertyState: z.string().optional(),
+        propertyZip: z.string().optional(),
         notes: z.string().optional(),
         optedOut: z.boolean().optional(),
       }))
@@ -212,6 +217,9 @@ export const appRouter = router({
           state: z.string().optional(),
           zip: z.string().optional(),
           propertyAddress: z.string().optional(),
+          propertyCity: z.string().optional(),
+          propertyState: z.string().optional(),
+          propertyZip: z.string().optional(),
         })),
         listId: z.number().optional(),
       }))
@@ -348,6 +356,8 @@ export const appRouter = router({
         scheduledAt: z.string().optional(),
         batchSize: z.number().min(1).max(500).default(10),
         batchIntervalMinutes: z.number().min(1).max(1440).default(5),
+        sendWindowStart: z.string().regex(/^\d{2}:\d{2}$/).default("09:00"),
+        sendWindowEnd: z.string().regex(/^\d{2}:\d{2}$/).default("20:00"),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -378,6 +388,8 @@ export const appRouter = router({
         aiEnabled: z.boolean().optional(),
         batchSize: z.number().min(1).max(500).optional(),
         batchIntervalMinutes: z.number().min(1).max(1440).optional(),
+        sendWindowStart: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+        sendWindowEnd: z.string().regex(/^\d{2}:\d{2}$/).optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -420,7 +432,51 @@ export const appRouter = router({
           await createCampaignTemplate(ctx.user.id, input.name, input.body, input.category);
           return { success: true };
         }),
+
+      update: protectedProcedure
+        .input(z.object({ id: z.number(), name: z.string().optional(), body: z.string().optional(), category: z.string().optional() }))
+        .mutation(async ({ ctx, input }) => {
+          const { id, ...data } = input;
+          await updateCampaignTemplate(id, ctx.user.id, data);
+          return { success: true };
+        }),
+
+      delete: protectedProcedure
+        .input(z.object({ id: z.number() }))
+        .mutation(async ({ ctx, input }) => {
+          await deleteCampaignTemplate(input.id, ctx.user.id);
+          return { success: true };
+        }),
     }),
+  }),
+
+  // ─── Top-level templates alias (for Templates page) ──────────────────────────
+  templates: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getCampaignTemplates(ctx.user.id);
+    }),
+
+    create: protectedProcedure
+      .input(z.object({ name: z.string(), body: z.string(), category: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        await createCampaignTemplate(ctx.user.id, input.name, input.body, input.category);
+        return { success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string().optional(), body: z.string().optional(), category: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        await updateCampaignTemplate(id, ctx.user.id, data);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteCampaignTemplate(input.id, ctx.user.id);
+        return { success: true };
+      }),
   }),
 
   // ─── AI ──────────────────────────────────────────────────────────────────────

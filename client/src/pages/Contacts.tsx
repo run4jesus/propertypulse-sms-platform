@@ -53,6 +53,9 @@ export default function Contacts() {
     phone: "",
     email: "",
     propertyAddress: "",
+    propertyCity: "",
+    propertyState: "",
+    propertyZip: "",
     city: "",
     state: "",
     zip: "",
@@ -80,7 +83,7 @@ export default function Contacts() {
       toast.success("Contact added");
       utils.contacts.list.invalidate();
       setAddOpen(false);
-      setForm({ firstName: "", lastName: "", phone: "", email: "", propertyAddress: "", city: "", state: "", zip: "", notes: "" });
+      setForm({ firstName: "", lastName: "", phone: "", email: "", propertyAddress: "", propertyCity: "", propertyState: "", propertyZip: "", city: "", state: "", zip: "", notes: "" });
     },
     onError: () => toast.error("Failed to add contact"),
   });
@@ -133,7 +136,10 @@ export default function Contacts() {
           city: obj.city || "",
           state: obj.state || "",
           zip: obj.zip || obj.zipcode || "",
-          propertyAddress: obj.propertyaddress || obj.property || "",
+          propertyAddress: obj.propertyaddress || obj.propertyaddr || obj.property || "",
+          propertyCity: obj.propertycity || obj.propcity || "",
+          propertyState: obj.propertystate || obj.propstate || "",
+          propertyZip: obj.propertyzip || obj.propzip || obj.propertyzipcode || "",
         };
       }).filter((r) => r.phone);
       if (rows.length === 0) return toast.error("No valid contacts found (phone number required)");
@@ -293,14 +299,26 @@ export default function Contacts() {
                   </div>
                   <div className="col-span-2">
                     <Label className="text-xs">Property Address</Label>
-                    <Input value={form.propertyAddress} onChange={(e) => setForm((f) => ({ ...f, propertyAddress: e.target.value }))} className="mt-1 h-8" />
+                    <Input value={form.propertyAddress} onChange={(e) => setForm((f) => ({ ...f, propertyAddress: e.target.value }))} className="mt-1 h-8" placeholder="123 Main St" />
                   </div>
                   <div>
-                    <Label className="text-xs">City</Label>
+                    <Label className="text-xs">Property City</Label>
+                    <Input value={form.propertyCity} onChange={(e) => setForm((f) => ({ ...f, propertyCity: e.target.value }))} className="mt-1 h-8" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Property State</Label>
+                    <Input value={form.propertyState} onChange={(e) => setForm((f) => ({ ...f, propertyState: e.target.value }))} className="mt-1 h-8" placeholder="TX" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Property Zip</Label>
+                    <Input value={form.propertyZip} onChange={(e) => setForm((f) => ({ ...f, propertyZip: e.target.value }))} className="mt-1 h-8" placeholder="75001" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Mailing City</Label>
                     <Input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} className="mt-1 h-8" />
                   </div>
                   <div>
-                    <Label className="text-xs">State</Label>
+                    <Label className="text-xs">Mailing State</Label>
                     <Input value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} className="mt-1 h-8" />
                   </div>
                   <div className="col-span-2">

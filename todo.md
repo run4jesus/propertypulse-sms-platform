@@ -96,3 +96,21 @@
 - [x] Add batch throttling controls to campaign creation dialog (batch size input + interval input)
 - [x] Show batch settings in campaign detail panel
 - [x] Add edit batch settings in campaign detail panel for draft/paused campaigns
+
+## Campaign List Send Rate Column + Daily Send Window
+- [x] Add send rate column to campaign list (batch size / interval visible in each row)
+- [x] Add sendWindowStart and sendWindowEnd columns to campaigns schema
+- [x] Push schema migration
+- [x] Add daily send window inputs to campaign creation dialog
+- [x] Show and edit daily send window in campaign detail panel
+
+## Message Templates + Merge Fields
+- [x] Add Templates page with create/edit/delete message templates
+- [x] Templates support merge fields: {FirstName}, {LastName}, {PropertyAddress}, {PropertyCity}, {PropertyState}, {PropertyZip}
+- [x] Insert-merge-field buttons in template editor (clickable chips)
+- [x] Add contact schema columns: propertyCity, propertyState, propertyZip
+- [x] Push schema migration for new contact columns
+- [x] Update CSV import to map these 6 fields
+- [x] Update contact add form to include all property fields
+- [x] Campaign message composer uses same merge field chips
+- [x] Templates nav item added to sidebar

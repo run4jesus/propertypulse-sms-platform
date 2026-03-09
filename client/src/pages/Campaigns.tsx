@@ -124,6 +124,8 @@ export default function Campaigns() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [batchSize, setBatchSize] = useState(10);
   const [batchIntervalMinutes, setBatchIntervalMinutes] = useState(5);
+  const [sendWindowStart, setSendWindowStart] = useState("09:00");
+  const [sendWindowEnd, setSendWindowEnd] = useState("20:00");
   const [steps, setSteps] = useState<Step[]>([
     { stepNumber: 1, body: "", delayDays: 0, delayHours: 0 },
   ]);
@@ -180,6 +182,8 @@ export default function Campaigns() {
     setScheduledAt("");
     setBatchSize(10);
     setBatchIntervalMinutes(5);
+    setSendWindowStart("09:00");
+    setSendWindowEnd("20:00");
     setSteps([{ stepNumber: 1, body: "", delayDays: 0, delayHours: 0 }]);
   };
 
@@ -200,6 +204,8 @@ export default function Campaigns() {
       scheduledAt: scheduledAt || undefined,
       batchSize,
       batchIntervalMinutes,
+      sendWindowStart,
+      sendWindowEnd,
       steps: campaignSteps,
     });
   };
@@ -339,6 +345,30 @@ export default function Campaigns() {
                     {" — "}
                     ~{Math.round((batchSize / batchIntervalMinutes) * 60)} msg/hr
                   </p>
+                  <div className="border-t border-border/50 pt-3">
+                    <Label className="text-xs text-muted-foreground">Daily Send Window (only send between these hours)</Label>
+                    <div className="grid grid-cols-2 gap-3 mt-1">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Start time</Label>
+                        <Input
+                          type="time"
+                          value={sendWindowStart}
+                          onChange={(e) => setSendWindowStart(e.target.value)}
+                          className="mt-1 h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">End time</Label>
+                        <Input
+                          type="time"
+                          value={sendWindowEnd}
+                          onChange={(e) => setSendWindowEnd(e.target.value)}
+                          className="mt-1 h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Campaign pauses automatically outside this window.</p>
+                  </div>
                 </div>
 
                 {type === "standard" ? (
@@ -351,8 +381,7 @@ export default function Campaigns() {
                       className="mt-1 min-h-[100px]"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      {message.length} chars · Use {"{FirstName}"}, {"{Address}"} for merge fields
-                    </p>
+                      {message.length} chars · Use {"{"}FirstName{"}"},  {"{"}LastName{"}"},  {"{"}PropertyAddress{"}"},  {"{"}PropertyCity{"}"},  {"{"}PropertyState{"}"},  {"{"}PropertyZip{"}"}           </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -470,12 +499,24 @@ export default function Campaigns() {
                     />
                   </div>
                 </div>
-                {c.scheduledAt && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    <Calendar className="h-3 w-3 inline mr-1" />
-                    {format(new Date(c.scheduledAt), "MMM d, h:mm a")}
-                  </p>
-                )}
+                {/* Send rate + window */}
+                <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Zap className="h-3 w-3" />
+                    {c.batchSize} / {c.batchIntervalMinutes}min
+                  </span>
+                  <span>·</span>
+                  <span>{c.sendWindowStart}–{c.sendWindowEnd}</span>
+                  {c.scheduledAt && (
+                    <>
+                      <span>·</span>
+                      <span>
+                        <Calendar className="h-3 w-3 inline mr-0.5" />
+                        {format(new Date(c.scheduledAt), "MMM d, h:mm a")}
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
             ))
           ) : (
@@ -578,8 +619,25 @@ export default function Campaigns() {
                   <p className="text-xs text-muted-foreground">msgs/hr</p>
                 </div>
               </div>
+              <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Send Window:</span>
+                <span>{selectedCampaign.sendWindowStart ?? "09:00"} – {selectedCampaign.sendWindowEnd ?? "20:00"}</span>
+                <span className="text-muted-foreground/60">(pauses outside this window)</span>
+                {(selectedCampaign.status === "draft" || selectedCampaign.status === "paused" || selectedCampaign.status === "scheduled") && (
+                  <button
+                    className="ml-1 text-primary underline underline-offset-2 hover:no-underline"
+                    onClick={() => {
+                      const start = prompt("Send window start (HH:MM)", selectedCampaign.sendWindowStart ?? "09:00");
+                      const end = prompt("Send window end (HH:MM)", selectedCampaign.sendWindowEnd ?? "20:00");
+                      if (start && end) updateCampaign.mutate({ id: selectedId!, sendWindowStart: start, sendWindowEnd: end });
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
               {selectedCampaign.scheduledAt && (
-                <p className="text-xs text-muted-foreground mt-3">
+                <p className="text-xs text-muted-foreground mt-2">
                   <Calendar className="h-3 w-3 inline mr-1" />
                   Scheduled: {format(new Date(selectedCampaign.scheduledAt), "MMM d, yyyy h:mm a")}
                 </p>

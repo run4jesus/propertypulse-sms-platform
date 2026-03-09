@@ -407,6 +407,27 @@ export async function createCampaignTemplate(userId: number, name: string, body:
   await db.insert(campaignTemplates).values({ userId, name, body, category });
 }
 
+export async function updateCampaignTemplate(
+  id: number,
+  userId: number,
+  data: { name?: string; body?: string; category?: string }
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(campaignTemplates)
+    .set(data)
+    .where(and(eq(campaignTemplates.id, id), eq(campaignTemplates.userId, userId)));
+}
+
+export async function deleteCampaignTemplate(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .delete(campaignTemplates)
+    .where(and(eq(campaignTemplates.id, id), eq(campaignTemplates.userId, userId)));
+}
+
 // ─── AI Suggestions ───────────────────────────────────────────────────────────
 export async function getLatestAiSuggestion(conversationId: number) {
   const db = await getDb();

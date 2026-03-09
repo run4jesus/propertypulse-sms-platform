@@ -12,6 +12,7 @@ import Contacts from "./pages/Contacts";
 import Reporting from "./pages/Reporting";
 import CallLogs from "./pages/CallLogs";
 import Settings from "./pages/Settings";
+import Templates from "./pages/Templates";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
         <Route path="/contacts" component={Contacts} />
         <Route path="/calls" component={CallLogs} />
         <Route path="/reporting" component={Reporting} />
+        <Route path="/templates" component={Templates} />
         <Route path="/settings" component={Settings} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

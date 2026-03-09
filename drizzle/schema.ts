@@ -84,6 +84,9 @@ export const contacts = mysqlTable("contacts", {
   state: varchar("state", { length: 50 }),
   zip: varchar("zip", { length: 20 }),
   propertyAddress: text("propertyAddress"),
+  propertyCity: varchar("propertyCity", { length: 100 }),
+  propertyState: varchar("propertyState", { length: 50 }),
+  propertyZip: varchar("propertyZip", { length: 10 }),
   notes: text("notes"),
   optedOut: boolean("optedOut").default(false).notNull(),
   // AI-extracted fields
@@ -187,6 +190,9 @@ export const campaigns = mysqlTable("campaigns", {
   // Batch throttling — how many messages per batch and how many minutes between batches
   batchSize: int("batchSize").default(10).notNull(),
   batchIntervalMinutes: int("batchIntervalMinutes").default(5).notNull(),
+  // Daily send window (24-hour format, e.g. "09:00" to "20:00")
+  sendWindowStart: varchar("sendWindowStart", { length: 5 }).default("09:00").notNull(),
+  sendWindowEnd: varchar("sendWindowEnd", { length: 5 }).default("20:00").notNull(),
   // Stats
   totalContacts: int("totalContacts").default(0).notNull(),
   sent: int("sent").default(0).notNull(),
