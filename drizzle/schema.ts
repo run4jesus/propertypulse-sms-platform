@@ -253,3 +253,129 @@ export const aiSuggestions = mysqlTable("ai_suggestions", {
 });
 
 export type AiSuggestion = typeof aiSuggestions.$inferSelect;
+
+// ─── Contact Groups ───────────────────────────────────────────────────────────
+export const contactGroups = mysqlTable("contact_groups", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  contactCount: int("contactCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ContactGroup = typeof contactGroups.$inferSelect;
+
+// ─── Contact ↔ Group (many-to-many) ──────────────────────────────────────────
+export const contactGroupMembers = mysqlTable("contact_group_members", {
+  id: int("id").autoincrement().primaryKey(),
+  contactId: int("contactId").notNull(),
+  groupId: int("groupId").notNull(),
+});
+
+// ─── Contact Management (special status lists) ───────────────────────────────
+// Tracks contacts in special states: opted_out, dnc, carrier_blocked, undeliverable, response_removal
+export const contactManagement = mysqlTable("contact_management", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  contactId: int("contactId").notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  listType: mysqlEnum("listType", ["opted_out", "dnc", "carrier_blocked", "undeliverable", "response_removal"]).notNull(),
+  reason: text("reason"),
+  addedAt: timestamp("addedAt").defaultNow().notNull(),
+});
+
+export type ContactManagement = typeof contactManagement.$inferSelect;
+
+// ─── Macros ───────────────────────────────────────────────────────────────────
+export const macros = mysqlTable("macros", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  shortcut: varchar("shortcut", { length: 50 }),
+  body: text("body").notNull(),
+  usageCount: int("usageCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Macro = typeof macros.$inferSelect;
+
+// ─── Keyword Campaigns ────────────────────────────────────────────────────────
+export const keywordCampaigns = mysqlTable("keyword_campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  keyword: varchar("keyword", { length: 50 }).notNull(),
+  replyMessage: text("replyMessage").notNull(),
+  status: mysqlEnum("status", ["active", "paused", "draft"]).default("draft").notNull(),
+  phoneNumberId: int("phoneNumberId"),
+  triggerCount: int("triggerCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type KeywordCampaign = typeof keywordCampaigns.$inferSelect;
+
+// ─── Workflows ────────────────────────────────────────────────────────────────
+export const workflows = mysqlTable("workflows", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  status: mysqlEnum("status", ["active", "inactive"]).default("inactive").notNull(),
+  activeContacts: int("activeContacts").default(0).notNull(),
+  totalMessages: int("totalMessages").default(0).notNull(),
+  totalDays: int("totalDays").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Workflow = typeof workflows.$inferSelect;
+
+// ─── Workflow Steps ───────────────────────────────────────────────────────────
+export const workflowSteps = mysqlTable("workflow_steps", {
+  id: int("id").autoincrement().primaryKey(),
+  workflowId: int("workflowId").notNull(),
+  stepNumber: int("stepNumber").notNull(),
+  body: text("body").notNull(),
+  delayDays: int("delayDays").default(0).notNull(),
+  // Reply-based actions
+  actionOnNoReply: boolean("actionOnNoReply").default(false).notNull(),
+  noReplyHours: int("noReplyHours").default(24).notNull(),
+  addToGroupId: int("addToGroupId"),
+  addLabelId: int("addLabelId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type WorkflowStep = typeof workflowSteps.$inferSelect;
+
+// ─── Custom Fields ────────────────────────────────────────────────────────────
+export const customFields = mysqlTable("custom_fields", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  fieldKey: varchar("fieldKey", { length: 50 }).notNull(),
+  fieldType: mysqlEnum("fieldType", ["text", "number", "date", "boolean"]).default("text").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CustomField = typeof customFields.$inferSelect;
+
+// ─── Calendar Events ──────────────────────────────────────────────────────────
+export const calendarEvents = mysqlTable("calendar_events", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  contactId: int("contactId"),
+  title: varchar("title", { length: 200 }).notNull(),
+  description: text("description"),
+  startAt: timestamp("startAt").notNull(),
+  endAt: timestamp("endAt").notNull(),
+  allDay: boolean("allDay").default(false).notNull(),
+  type: mysqlEnum("type", ["appointment", "follow_up", "call", "other"]).default("appointment").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CalendarEvent = typeof calendarEvents.$inferSelect;

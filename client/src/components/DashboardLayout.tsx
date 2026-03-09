@@ -27,9 +27,13 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
 import {
   BarChart3,
+  Ban,
   Bot,
+  CalendarDays,
   ChevronDown,
   FileText,
+  GitBranch,
+  Hash,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -37,6 +41,7 @@ import {
   Phone,
   Settings,
   Users,
+  Users2,
   Zap,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
@@ -45,16 +50,44 @@ import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: MessageSquare, label: "Messenger", path: "/messenger" },
-  { icon: Zap, label: "Campaigns", path: "/campaigns" },
-  { icon: Users, label: "Contacts", path: "/contacts" },
-  { icon: FileText, label: "Templates", path: "/templates" },
-  { icon: Phone, label: "Call Logs", path: "/calls" },
-  { icon: BarChart3, label: "Reporting", path: "/reporting" },
-  { icon: Settings, label: "Settings", path: "/settings" },
+const menuGroups = [
+  {
+    label: "Core",
+    items: [
+      { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+      { icon: MessageSquare, label: "Messenger", path: "/messenger" },
+      { icon: CalendarDays, label: "Calendar", path: "/calendar" },
+    ],
+  },
+  {
+    label: "Campaigns",
+    items: [
+      { icon: Zap, label: "Campaigns", path: "/campaigns" },
+      { icon: Hash, label: "Keywords", path: "/campaigns/keywords" },
+      { icon: GitBranch, label: "Workflows", path: "/workflows" },
+      { icon: FileText, label: "Templates", path: "/templates" },
+    ],
+  },
+  {
+    label: "Contacts",
+    items: [
+      { icon: Users, label: "Contacts", path: "/contacts" },
+      { icon: Users2, label: "Groups", path: "/contacts/groups" },
+      { icon: Ban, label: "Management", path: "/contacts/management" },
+    ],
+  },
+  {
+    label: "Tools",
+    items: [
+      { icon: Zap, label: "Macros", path: "/macros" },
+      { icon: Phone, label: "Call Logs", path: "/calls" },
+      { icon: BarChart3, label: "Reporting", path: "/reporting" },
+      { icon: Settings, label: "Settings", path: "/settings" },
+    ],
+  },
 ];
+
+const menuItems = menuGroups.flatMap(g => g.items);
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 240;
@@ -206,30 +239,39 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           {/* Nav */}
-          <SidebarContent className="gap-0 py-3">
-            <SidebarMenu className="px-2 gap-0.5">
-              {menuItems.map((item) => {
-                const isActive =
-                  item.path === "/" ? location === "/" : location.startsWith(item.path);
-                return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
-                      className={`h-9 transition-all font-normal text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent ${
-                        isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                          : ""
-                      }`}
-                    >
-                      <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+          <SidebarContent className="gap-0 py-2 overflow-y-auto">
+            {menuGroups.map((group) => (
+              <div key={group.label} className="mb-1">
+                {!isCollapsed && (
+                  <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+                    {group.label}
+                  </p>
+                )}
+                <SidebarMenu className="px-2 gap-0.5">
+                  {group.items.map((item) => {
+                    const isActive =
+                      item.path === "/" ? location === "/" : location.startsWith(item.path);
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          onClick={() => setLocation(item.path)}
+                          tooltip={item.label}
+                          className={`h-9 transition-all font-normal text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent ${
+                            isActive
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                              : ""
+                          }`}
+                        >
+                          <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : ""}`} />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </div>
+            ))}
 
             {/* AI Toggle section */}
             {!isCollapsed && (

@@ -1,4 +1,4 @@
-import { and, desc, eq, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -7,16 +7,25 @@ import {
   campaignSteps,
   campaignTemplates,
   campaigns,
+  contactGroupMembers,
+  contactGroups,
   contactLabels,
   contactListMembers,
   contactLists,
+  contactManagement,
   contacts,
   conversationLabels,
   conversations,
+  customFields,
+  calendarEvents,
+  keywordCampaigns,
   labels,
+  macros,
   messages,
   phoneNumbers,
   users,
+  workflowSteps,
+  workflows,
   type InsertCampaign,
   type InsertContact,
   type InsertMessage,
@@ -496,4 +505,222 @@ export async function getDashboardStats(userId: number) {
     totalCampaigns: totalCampaigns?.count ?? 0,
     activeCampaigns: activeCampaigns?.count ?? 0,
   };
+}
+
+// ─── Contact Groups ───────────────────────────────────────────────────────────
+export async function getContactGroups(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(contactGroups).where(eq(contactGroups.userId, userId)).orderBy(contactGroups.name);
+}
+
+export async function createContactGroup(userId: number, name: string, description?: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(contactGroups).values({ userId, name, description });
+}
+
+export async function updateContactGroup(id: number, userId: number, data: { name?: string; description?: string }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(contactGroups).set(data).where(and(eq(contactGroups.id, id), eq(contactGroups.userId, userId)));
+}
+
+export async function deleteContactGroup(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(contactGroups).where(and(eq(contactGroups.id, id), eq(contactGroups.userId, userId)));
+}
+
+export async function addContactToGroup(contactId: number, groupId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(contactGroupMembers).values({ contactId, groupId }).onDuplicateKeyUpdate({ set: { contactId } });
+}
+
+export async function removeContactFromGroup(contactId: number, groupId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(contactGroupMembers).where(and(eq(contactGroupMembers.contactId, contactId), eq(contactGroupMembers.groupId, groupId)));
+}
+
+export async function getGroupMembers(groupId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ contact: contacts }).from(contactGroupMembers).innerJoin(contacts, eq(contactGroupMembers.contactId, contacts.id)).where(eq(contactGroupMembers.groupId, groupId));
+}
+
+// ─── Contact Management Lists ─────────────────────────────────────────────────
+export async function getContactManagementList(userId: number, listType?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  if (listType) {
+    return db.select().from(contactManagement).where(and(eq(contactManagement.userId, userId), eq(contactManagement.listType, listType as any))).orderBy(desc(contactManagement.addedAt));
+  }
+  return db.select().from(contactManagement).where(eq(contactManagement.userId, userId)).orderBy(desc(contactManagement.addedAt));
+}
+
+export async function addToContactManagement(userId: number, contactId: number, phone: string, listType: string, reason?: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(contactManagement).values({ userId, contactId, phone, listType: listType as any, reason });
+}
+
+export async function removeFromContactManagement(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(contactManagement).where(and(eq(contactManagement.id, id), eq(contactManagement.userId, userId)));
+}
+
+// ─── Macros ───────────────────────────────────────────────────────────────────
+export async function getMacros(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(macros).where(eq(macros.userId, userId)).orderBy(macros.name);
+}
+
+export async function createMacro(userId: number, name: string, body: string, shortcut?: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(macros).values({ userId, name, body, shortcut });
+}
+
+export async function updateMacro(id: number, userId: number, data: { name?: string; body?: string; shortcut?: string }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(macros).set(data).where(and(eq(macros.id, id), eq(macros.userId, userId)));
+}
+
+export async function deleteMacro(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(macros).where(and(eq(macros.id, id), eq(macros.userId, userId)));
+}
+
+export async function incrementMacroUsage(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(macros).set({ usageCount: sql<number>`usageCount + 1` }).where(eq(macros.id, id));
+}
+
+// ─── Keyword Campaigns ────────────────────────────────────────────────────────
+export async function getKeywordCampaigns(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(keywordCampaigns).where(eq(keywordCampaigns.userId, userId)).orderBy(desc(keywordCampaigns.createdAt));
+}
+
+export async function createKeywordCampaign(data: { userId: number; name: string; keyword: string; replyMessage: string; phoneNumberId?: number }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(keywordCampaigns).values(data);
+}
+
+export async function updateKeywordCampaign(id: number, userId: number, data: { name?: string; keyword?: string; replyMessage?: string; status?: "active" | "paused" | "draft"; phoneNumberId?: number }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(keywordCampaigns).set(data).where(and(eq(keywordCampaigns.id, id), eq(keywordCampaigns.userId, userId)));
+}
+
+export async function deleteKeywordCampaign(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(keywordCampaigns).where(and(eq(keywordCampaigns.id, id), eq(keywordCampaigns.userId, userId)));
+}
+
+// ─── Workflows ────────────────────────────────────────────────────────────────
+export async function getWorkflows(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(workflows).where(eq(workflows.userId, userId)).orderBy(desc(workflows.createdAt));
+}
+
+export async function getWorkflowById(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(workflows).where(and(eq(workflows.id, id), eq(workflows.userId, userId))).limit(1);
+  return result[0];
+}
+
+export async function createWorkflow(userId: number, name: string, description?: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(workflows).values({ userId, name, description });
+}
+
+export async function updateWorkflow(id: number, userId: number, data: { name?: string; description?: string; status?: "active" | "inactive"; totalMessages?: number; totalDays?: number }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(workflows).set(data).where(and(eq(workflows.id, id), eq(workflows.userId, userId)));
+}
+
+export async function deleteWorkflow(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(workflows).where(and(eq(workflows.id, id), eq(workflows.userId, userId)));
+}
+
+export async function getWorkflowSteps(workflowId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(workflowSteps).where(eq(workflowSteps.workflowId, workflowId)).orderBy(workflowSteps.stepNumber);
+}
+
+export async function createWorkflowStep(data: { workflowId: number; stepNumber: number; body: string; delayDays: number; actionOnNoReply?: boolean; noReplyHours?: number; addToGroupId?: number; addLabelId?: number }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(workflowSteps).values(data);
+}
+
+export async function deleteWorkflowSteps(workflowId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(workflowSteps).where(eq(workflowSteps.workflowId, workflowId));
+}
+
+// ─── Custom Fields ────────────────────────────────────────────────────────────
+export async function getCustomFields(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(customFields).where(eq(customFields.userId, userId)).orderBy(customFields.name);
+}
+
+export async function createCustomField(userId: number, name: string, fieldKey: string, fieldType: "text" | "number" | "date" | "boolean") {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(customFields).values({ userId, name, fieldKey, fieldType });
+}
+
+export async function deleteCustomField(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(customFields).where(and(eq(customFields.id, id), eq(customFields.userId, userId)));
+}
+
+// ─── Calendar Events ──────────────────────────────────────────────────────────
+export async function getCalendarEvents(userId: number, startAt?: Date, endAt?: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  if (startAt && endAt) {
+    return db.select().from(calendarEvents).where(and(eq(calendarEvents.userId, userId), gte(calendarEvents.startAt, startAt), lte(calendarEvents.startAt, endAt))).orderBy(calendarEvents.startAt);
+  }
+  return db.select().from(calendarEvents).where(eq(calendarEvents.userId, userId)).orderBy(calendarEvents.startAt);
+}
+
+export async function createCalendarEvent(data: { userId: number; contactId?: number; title: string; description?: string; startAt: Date; endAt: Date; allDay?: boolean; type?: "appointment" | "follow_up" | "call" | "other" }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(calendarEvents).values(data);
+}
+
+export async function updateCalendarEvent(id: number, userId: number, data: { title?: string; description?: string; startAt?: Date; endAt?: Date; allDay?: boolean; type?: "appointment" | "follow_up" | "call" | "other" }) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(calendarEvents).set(data).where(and(eq(calendarEvents.id, id), eq(calendarEvents.userId, userId)));
+}
+
+export async function deleteCalendarEvent(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(calendarEvents).where(and(eq(calendarEvents.id, id), eq(calendarEvents.userId, userId)));
 }

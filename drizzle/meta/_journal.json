@@ -36,6 +36,13 @@
       "when": 1773025402218,
       "tag": "0004_tired_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1773091529498,
+      "tag": "0005_famous_khan",
+      "breakpoints": true
     }
   ]
 }

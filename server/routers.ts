@@ -5,8 +5,10 @@ import { invokeLLM } from "./_core/llm";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
+  addContactToGroup,
   addContactToList,
   addPhoneNumber,
+  addToContactManagement,
   assignLabelToContact,
   assignLabelToConversation,
   bulkInsertContacts,
@@ -14,45 +16,77 @@ import {
   createCampaign,
   createCampaignStep,
   createCampaignTemplate,
+  createCalendarEvent,
   createContact,
+  createContactGroup,
   createContactList,
+  createCustomField,
+  createKeywordCampaign,
   createLabel,
+  createMacro,
   createMessage,
+  createWorkflow,
+  createWorkflowStep,
   deleteCampaign,
   deleteCampaignSteps,
+  deleteCampaignTemplate,
+  deleteCalendarEvent,
   deleteContact,
+  deleteContactGroup,
+  deleteCustomField,
+  deleteKeywordCampaign,
   deleteLabel,
+  deleteMacro,
   deletePhoneNumber,
+  deleteWorkflow,
+  deleteWorkflowSteps,
   getCallRecordings,
+  getCalendarEvents,
   getCampaignById,
   getCampaignSteps,
   getCampaignTemplates,
   getCampaigns,
   getContactById,
+  getContactGroups,
   getContactLabels,
   getContactLists,
+  getContactManagementList,
   getContacts,
   getConversationById,
   getConversationLabels,
   getConversations,
+  getCustomFields,
   getDashboardStats,
+  getGroupMembers,
+  getKeywordCampaigns,
   getLabels,
   getLatestAiSuggestion,
+  getMacros,
   getMessages,
   getOrCreateConversation,
   getPhoneNumbers,
   getUserByOpenId,
+  getWorkflowById,
+  getWorkflowSteps,
+  getWorkflows,
+  incrementMacroUsage,
+  removeContactFromGroup,
+  removeFromContactManagement,
   removeLabelFromContact,
   removeLabelFromConversation,
   saveAiSuggestion,
   updateCallRecordingTranscription,
+  updateCalendarEvent,
   updateCampaign,
   updateCampaignTemplate,
   updateContact,
+  updateContactGroup,
   updateConversation,
+  updateKeywordCampaign,
+  updateMacro,
   updateUserAiMode,
   updateUserTwilio,
-  deleteCampaignTemplate,
+  updateWorkflow,
 } from "./db";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
@@ -664,6 +698,277 @@ ${transcript}`,
         createdAt: c.createdAt,
       }));
     }),
+  }),
+
+  // ─── Contact Groups ──────────────────────────────────────────────────────────
+  contactGroups: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getContactGroups(ctx.user.id);
+    }),
+
+    create: protectedProcedure
+      .input(z.object({ name: z.string(), description: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        await createContactGroup(ctx.user.id, input.name, input.description);
+        return { success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string().optional(), description: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        await updateContactGroup(id, ctx.user.id, data);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteContactGroup(input.id, ctx.user.id);
+        return { success: true };
+      }),
+
+    addContact: protectedProcedure
+      .input(z.object({ groupId: z.number(), contactId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await addContactToGroup(input.contactId, input.groupId);
+        return { success: true };
+      }),
+
+    removeContact: protectedProcedure
+      .input(z.object({ groupId: z.number(), contactId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await removeContactFromGroup(input.contactId, input.groupId);
+        return { success: true };
+      }),
+
+    members: protectedProcedure
+      .input(z.object({ groupId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return getGroupMembers(input.groupId);
+      }),
+  }),
+
+  // ─── Contact Management Lists ────────────────────────────────────────────────
+  contactManagement: router({
+    list: protectedProcedure
+      .input(z.object({ listType: z.string().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        return getContactManagementList(ctx.user.id, input?.listType);
+      }),
+
+    add: protectedProcedure
+      .input(z.object({ contactId: z.number(), phone: z.string(), listType: z.string(), reason: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        await addToContactManagement(ctx.user.id, input.contactId, input.phone, input.listType, input.reason);
+        return { success: true };
+      }),
+
+    remove: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await removeFromContactManagement(input.id, ctx.user.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Macros ──────────────────────────────────────────────────────────────────
+  macros: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getMacros(ctx.user.id);
+    }),
+
+    create: protectedProcedure
+      .input(z.object({ name: z.string(), body: z.string(), shortcut: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        await createMacro(ctx.user.id, input.name, input.body, input.shortcut);
+        return { success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string().optional(), body: z.string().optional(), shortcut: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        await updateMacro(id, ctx.user.id, data);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteMacro(input.id, ctx.user.id);
+        return { success: true };
+      }),
+
+    use: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await incrementMacroUsage(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Keyword Campaigns ───────────────────────────────────────────────────────
+  keywordCampaigns: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getKeywordCampaigns(ctx.user.id);
+    }),
+
+    create: protectedProcedure
+      .input(z.object({ name: z.string(), keyword: z.string(), replyMessage: z.string(), phoneNumberId: z.number().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        await createKeywordCampaign({ ...input, userId: ctx.user.id });
+        return { success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string().optional(), keyword: z.string().optional(), replyMessage: z.string().optional(), status: z.enum(["active", "paused", "draft"]).optional(), phoneNumberId: z.number().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        await updateKeywordCampaign(id, ctx.user.id, data);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteKeywordCampaign(input.id, ctx.user.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Workflows ───────────────────────────────────────────────────────────────
+  workflows: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getWorkflows(ctx.user.id);
+    }),
+
+    get: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const workflow = await getWorkflowById(input.id, ctx.user.id);
+        if (!workflow) return null;
+        const steps = await getWorkflowSteps(input.id);
+        return { ...workflow, steps };
+      }),
+
+    create: protectedProcedure
+      .input(z.object({ name: z.string(), description: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        await createWorkflow(ctx.user.id, input.name, input.description);
+        return { success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        status: z.enum(["active", "inactive"]).optional(),
+        steps: z.array(z.object({
+          stepNumber: z.number(),
+          body: z.string(),
+          delayDays: z.number(),
+          actionOnNoReply: z.boolean().optional(),
+          noReplyHours: z.number().optional(),
+          addToGroupId: z.number().optional(),
+          addLabelId: z.number().optional(),
+        })).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, steps, ...data } = input;
+        await updateWorkflow(id, ctx.user.id, { ...data, totalMessages: steps?.length, totalDays: steps ? Math.max(...steps.map(s => s.delayDays), 0) : undefined });
+        if (steps) {
+          await deleteWorkflowSteps(id);
+          for (const step of steps) {
+            await createWorkflowStep({ workflowId: id, ...step });
+          }
+        }
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteWorkflow(input.id, ctx.user.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Custom Fields ───────────────────────────────────────────────────────────
+  customFields: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getCustomFields(ctx.user.id);
+    }),
+
+    create: protectedProcedure
+      .input(z.object({ name: z.string(), fieldKey: z.string(), fieldType: z.enum(["text", "number", "date", "boolean"]).default("text") }))
+      .mutation(async ({ ctx, input }) => {
+        await createCustomField(ctx.user.id, input.name, input.fieldKey, input.fieldType);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteCustomField(input.id, ctx.user.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Calendar ────────────────────────────────────────────────────────────────
+  calendar: router({
+    list: protectedProcedure
+      .input(z.object({ startAt: z.string().optional(), endAt: z.string().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        return getCalendarEvents(
+          ctx.user.id,
+          input?.startAt ? new Date(input.startAt) : undefined,
+          input?.endAt ? new Date(input.endAt) : undefined,
+        );
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        contactId: z.number().optional(),
+        title: z.string(),
+        description: z.string().optional(),
+        startAt: z.string(),
+        endAt: z.string(),
+        allDay: z.boolean().optional(),
+        type: z.enum(["appointment", "follow_up", "call", "other"]).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await createCalendarEvent({ ...input, userId: ctx.user.id, startAt: new Date(input.startAt), endAt: new Date(input.endAt) });
+        return { success: true };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        startAt: z.string().optional(),
+        endAt: z.string().optional(),
+        allDay: z.boolean().optional(),
+        type: z.enum(["appointment", "follow_up", "call", "other"]).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, startAt, endAt, ...data } = input;
+        await updateCalendarEvent(id, ctx.user.id, {
+          ...data,
+          startAt: startAt ? new Date(startAt) : undefined,
+          endAt: endAt ? new Date(endAt) : undefined,
+        });
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteCalendarEvent(input.id, ctx.user.id);
+        return { success: true };
+      }),
   }),
 
   // ─── Twilio Webhook (public) ──────────────────────────────────────────────────

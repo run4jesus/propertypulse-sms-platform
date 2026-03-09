@@ -25,6 +25,7 @@ import {
   Phone,
   MessageSquare,
   RefreshCw,
+  Zap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "wouter";
@@ -43,15 +44,60 @@ const LABEL_COLORS: Record<string, string> = {
 
 const STATUS_FILTERS = [
   { label: "All", value: undefined },
-  { label: "Awaiting Reply", value: "awaiting_reply" },
   { label: "Unreplied", value: "unreplied" },
+  { label: "Awaiting Reply", value: "awaiting_reply" },
   { label: "Opted Out", value: "opted_out" },
+  { label: "Starred", value: "starred" },
 ];
 
 function getScoreColor(score: number) {
   if (score >= 7) return "text-emerald-600 bg-emerald-50";
   if (score >= 4) return "text-amber-600 bg-amber-50";
   return "text-red-500 bg-red-50";
+}
+
+function MacrosDropdown({ onInsert }: { onInsert: (body: string) => void }) {
+  const { data: macros = [] } = trpc.macros.list.useQuery();
+
+  if (macros.length === 0) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="outline" size="icon" className="h-10 w-10" disabled>
+            <Zap className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>No macros yet — create them in Macros</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon" className="h-10 w-10">
+              <Zap className="h-4 w-4 text-amber-500" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Insert macro</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="end" className="w-56 max-h-64 overflow-y-auto">
+        {macros.map((m) => (
+          <DropdownMenuItem
+            key={m.id}
+            onClick={() => onInsert(m.body)}
+            className="flex flex-col items-start gap-0.5"
+          >
+            <span className="font-medium text-sm">{m.name}</span>
+            <span className="text-xs text-muted-foreground truncate w-full">{m.body.slice(0, 60)}{m.body.length > 60 ? "…" : ""}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export default function Messenger() {
@@ -463,6 +509,8 @@ export default function Messenger() {
                 />
               </div>
               <div className="flex gap-1.5 shrink-0">
+                {/* Macros quick-insert */}
+                <MacrosDropdown onInsert={(body) => setMessageText(prev => prev ? prev + " " + body : body)} />
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button

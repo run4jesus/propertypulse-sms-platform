@@ -114,3 +114,28 @@
 - [x] Update contact add form to include all property fields
 - [x] Campaign message composer uses same merge field chips
 - [x] Templates nav item added to sidebar
+
+## SmarterContact Gap — High Priority
+- [ ] Inbox filters: Unreplied, Awaiting reply, Opted out, Missed calls, Deleted (in sidebar)
+- [ ] Campaigns + Labels + Groups collapsible sections in Messenger sidebar
+- [ ] Contact Groups (named lists, separate from tags)
+- [ ] Contact management page: Opted out, DNC, Carrier blocked, Undeliverable, Response removal
+- [ ] Deleted contacts section
+- [ ] Keyword campaigns (trigger auto-reply when someone texts a keyword)
+- [ ] Keyword templates
+- [ ] Completed + Deleted campaign sections
+- [ ] Workflows section: standalone multi-step drip with per-step day delays
+- [ ] Workflow reply-based actions: auto-add to group, auto-add label when no reply in X hours
+- [ ] Workflow active/inactive toggle
+- [ ] Reporting: AI filtering rate, carrier block rate, SMS segments sent, median response time
+- [ ] Reporting: SMS-to-lead conversion rate, contact-to-lead conversion rate
+- [ ] Reporting: Export to CSV button
+- [ ] Reporting: Filter by message template
+
+## SmarterContact Gap — Medium Priority
+- [ ] Macros: quick-reply saved shortcuts in Messenger conversation view
+- [ ] Owned numbers table in Settings with block rate per number, status, SMS sent
+- [ ] Incoming calls toggle, voicemail toggle, call auto-reply toggle in phone settings
+- [ ] Calendar page with appointment scheduling (month/week/day views)
+- [ ] Custom fields editor in Settings
+- [ ] Notifications settings page
