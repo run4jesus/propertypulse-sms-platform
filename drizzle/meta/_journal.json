@@ -43,6 +43,13 @@
       "when": 1773091529498,
       "tag": "0005_famous_khan",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1773093611387,
+      "tag": "0006_burly_sumo",
+      "breakpoints": true
     }
   ]
 }

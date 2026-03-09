@@ -139,3 +139,52 @@
 - [ ] Calendar page with appointment scheduling (month/week/day views)
 - [ ] Custom fields editor in Settings
 - [ ] Notifications settings page
+
+## Production-Ready Features (Phase 16-17)
+
+### Opt-Out Auto-Detection
+- [x] Detect STOP/UNSUBSCRIBE/QUIT/CANCEL/END/OPTOUT in inbound messages
+- [x] Auto-move contact to Opted Out list in Contact Management
+- [x] Auto-update conversation status to opted_out
+- [x] Block future outbound messages to opted-out contacts (batch engine skips optedOut=true)
+- [x] Re-opt-in detection (START/YES/UNSTOP)
+
+### Template Picker in Campaign Composer
+- [x] Add "Use Template" button in campaign creation message body
+- [x] Popover with template list and preview
+- [x] Selecting a template populates the message body with merge fields intact
+
+### TextGrid Webhook Handler
+- [x] POST /api/sms/inbound endpoint for inbound SMS
+- [x] POST /api/sms/status endpoint for delivery receipts
+- [x] Parse From/To/Body from TextGrid webhook payload
+- [x] Match inbound number to existing contact or create new contact
+- [x] Create or update conversation record
+- [x] Store inbound message in messages table
+- [x] Trigger opt-out detection on inbound message
+- [x] Trigger AI auto-reply if AI mode is enabled globally + per conversation
+- [x] Return TwiML 200 response to TextGrid
+
+### Batch Send Engine
+- [x] Background job that runs every 60 seconds to process pending campaign batches
+- [x] Respects batchSize and batchIntervalMinutes per campaign
+- [x] Respects sendWindowStart and sendWindowEnd
+- [x] Resolves merge fields per contact before sending
+- [x] Marks messages as sent/failed in DB
+- [x] Updates campaign sentCount per batch
+- [x] Skips opted-out contacts automatically
+- [x] Marks campaign as completed when all contacts are processed
+
+### Contact Deduplication on CSV Import
+- [ ] Check for duplicate phone numbers before inserting — skip duplicates, report count
+
+### Reply Keyword Auto-Labeling
+- [ ] Detect "interested", "yes", "call me" → Hot Lead label
+- [ ] Detect "not interested", "no" → Not Interested label
+
+### Opt-Out Footer Toggle
+- [x] Toggle in campaign creation: auto-append "Reply STOP to opt out"
+- [x] Batch engine appends footer when optOutFooter=true
+
+### Campaign Pause on Opt-Out
+- [x] Batch engine skips opted-out contacts in the send queue

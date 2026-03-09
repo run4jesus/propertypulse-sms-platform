@@ -90,6 +90,9 @@ import {
 } from "./db";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
+import { getDb } from "./db";
+import { eq, sql } from "drizzle-orm";
+import { contacts } from "../drizzle/schema";
 
 export const appRouter = router({
   system: systemRouter,
@@ -258,9 +261,43 @@ export const appRouter = router({
         listId: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const rows = input.contacts.map((c) => ({ ...c, userId: ctx.user.id }));
-        await bulkInsertContacts(rows);
-        return { success: true, count: rows.length };
+        // Deduplication: fetch existing phone numbers for this user
+        const db = await getDb();
+        let skipped = 0;
+        let deduped = input.contacts;
+        if (db) {
+          const existingContacts = await db
+            .select({ phone: contacts.phone })
+            .from(contacts)
+            .where(eq(contacts.userId, ctx.user.id));
+          const existingPhones = new Set(existingContacts.map((c) => c.phone));
+          // Also deduplicate within the import batch itself
+          const seenInBatch = new Set<string>();
+          deduped = input.contacts.filter((c) => {
+            const normalized = c.phone.replace(/[^\d+]/g, "");
+            if (existingPhones.has(normalized) || existingPhones.has(c.phone) || seenInBatch.has(normalized)) {
+              skipped++;
+              return false;
+            }
+            seenInBatch.add(normalized);
+            return true;
+          });
+        }
+        const rows = deduped.map((c) => ({ ...c, userId: ctx.user.id }));
+        if (rows.length > 0) await bulkInsertContacts(rows);
+        // Add to list if provided
+        if (input.listId && rows.length > 0 && db) {
+          const inserted = await db
+            .select({ id: contacts.id })
+            .from(contacts)
+            .where(eq(contacts.userId, ctx.user.id))
+            .orderBy(sql`${contacts.id} DESC`)
+            .limit(rows.length);
+          for (const c of inserted) {
+            await addContactToList(c.id, input.listId!);
+          }
+        }
+        return { success: true, count: rows.length, skipped };
       }),
 
     assignLabel: protectedProcedure
@@ -392,6 +429,7 @@ export const appRouter = router({
         batchIntervalMinutes: z.number().min(1).max(1440).default(5),
         sendWindowStart: z.string().regex(/^\d{2}:\d{2}$/).default("09:00"),
         sendWindowEnd: z.string().regex(/^\d{2}:\d{2}$/).default("20:00"),
+        optOutFooter: z.boolean().default(true),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -424,6 +462,7 @@ export const appRouter = router({
         batchIntervalMinutes: z.number().min(1).max(1440).optional(),
         sendWindowStart: z.string().regex(/^\d{2}:\d{2}$/).optional(),
         sendWindowEnd: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+        optOutFooter: z.boolean().optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {

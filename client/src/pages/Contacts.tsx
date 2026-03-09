@@ -107,7 +107,10 @@ export default function Contacts() {
 
   const bulkImport = trpc.contacts.bulkImport.useMutation({
     onSuccess: (data) => {
-      toast.success(`Imported ${data.count} contacts`);
+      const msg = data.skipped > 0
+        ? `Imported ${data.count} contacts · ${data.skipped} duplicate${data.skipped !== 1 ? 's' : ''} skipped`
+        : `Imported ${data.count} contacts`;
+      toast.success(msg);
       utils.contacts.list.invalidate();
       setImportOpen(false);
     },

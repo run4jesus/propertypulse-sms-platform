@@ -193,6 +193,11 @@ export const campaigns = mysqlTable("campaigns", {
   // Daily send window (24-hour format, e.g. "09:00" to "20:00")
   sendWindowStart: varchar("sendWindowStart", { length: 5 }).default("09:00").notNull(),
   sendWindowEnd: varchar("sendWindowEnd", { length: 5 }).default("20:00").notNull(),
+  // Opt-out footer toggle
+  optOutFooter: boolean("optOutFooter").default(true).notNull(),
+  // Batch send engine tracking
+  lastBatchSentAt: timestamp("lastBatchSentAt"),
+  nextBatchOffset: int("nextBatchOffset").default(0).notNull(),
   // Stats
   totalContacts: int("totalContacts").default(0).notNull(),
   sent: int("sent").default(0).notNull(),

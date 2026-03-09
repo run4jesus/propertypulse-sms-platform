@@ -26,6 +26,7 @@ import {
   Calendar,
   CheckCircle2,
   ChevronRight,
+  FileText,
   Loader2,
   Pause,
   Pencil,
@@ -34,6 +35,11 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -126,6 +132,8 @@ export default function Campaigns() {
   const [batchIntervalMinutes, setBatchIntervalMinutes] = useState(5);
   const [sendWindowStart, setSendWindowStart] = useState("09:00");
   const [sendWindowEnd, setSendWindowEnd] = useState("20:00");
+  const [optOutFooter, setOptOutFooter] = useState(true);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [steps, setSteps] = useState<Step[]>([
     { stepNumber: 1, body: "", delayDays: 0, delayHours: 0 },
   ]);
@@ -133,6 +141,7 @@ export default function Campaigns() {
   const { data: campaigns, isLoading } = trpc.campaigns.list.useQuery();
   const { data: contactLists } = trpc.contactLists.list.useQuery();
   const { data: phoneNumbers } = trpc.phoneNumbers.list.useQuery();
+  const { data: templates } = trpc.templates.list.useQuery();
   const { data: selectedCampaign } = trpc.campaigns.get.useQuery(
     { id: selectedId! },
     { enabled: !!selectedId }
@@ -184,6 +193,7 @@ export default function Campaigns() {
     setBatchIntervalMinutes(5);
     setSendWindowStart("09:00");
     setSendWindowEnd("20:00");
+    setOptOutFooter(true);
     setSteps([{ stepNumber: 1, body: "", delayDays: 0, delayHours: 0 }]);
   };
 
@@ -207,6 +217,7 @@ export default function Campaigns() {
       sendWindowStart,
       sendWindowEnd,
       steps: campaignSteps,
+      optOutFooter,
     });
   };
 
@@ -371,14 +382,55 @@ export default function Campaigns() {
                   </div>
                 </div>
 
+                {/* Opt-out footer toggle */}
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div>
+                    <p className="text-xs font-medium">Opt-out footer</p>
+                    <p className="text-xs text-muted-foreground">Appends "Reply STOP to opt out." to every message</p>
+                  </div>
+                  <Switch checked={optOutFooter} onCheckedChange={setOptOutFooter} />
+                </div>
+
                 {type === "standard" ? (
                   <div>
-                    <Label className="text-xs">Message</Label>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="text-xs">Message</Label>
+                      <Popover open={templatePickerOpen} onOpenChange={setTemplatePickerOpen}>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+                            <FileText className="h-3 w-3" />
+                            Use Template
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-2" align="end">
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Select a template</p>
+                          {templates && templates.length > 0 ? (
+                            <div className="space-y-1 max-h-48 overflow-y-auto">
+                              {templates.map((t) => (
+                                <button
+                                  key={t.id}
+                                  className="w-full text-left px-2 py-1.5 rounded hover:bg-accent text-sm"
+                                  onClick={() => {
+                                    setMessage(t.body);
+                                    setTemplatePickerOpen(false);
+                                  }}
+                                >
+                                  <p className="font-medium text-xs">{t.name}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{t.body}</p>
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground text-center py-3">No templates yet. Create one in Templates.</p>
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                     <Textarea
-                      placeholder="Hi {FirstName}, I'm interested in your property at {Address}..."
+                      placeholder="Hi {FirstName}, I'm interested in your property at {PropertyAddress}..."
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
-                      className="mt-1 min-h-[100px]"
+                      className="min-h-[100px]"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       {message.length} chars · Use {"{"}FirstName{"}"},  {"{"}LastName{"}"},  {"{"}PropertyAddress{"}"},  {"{"}PropertyCity{"}"},  {"{"}PropertyState{"}"},  {"{"}PropertyZip{"}"}           </p>
