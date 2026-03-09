@@ -184,6 +184,9 @@ export const campaigns = mysqlTable("campaigns", {
   completedAt: timestamp("completedAt"),
   // AI toggle for this campaign
   aiEnabled: boolean("aiEnabled").default(false).notNull(),
+  // Batch throttling — how many messages per batch and how many minutes between batches
+  batchSize: int("batchSize").default(10).notNull(),
+  batchIntervalMinutes: int("batchIntervalMinutes").default(5).notNull(),
   // Stats
   totalContacts: int("totalContacts").default(0).notNull(),
   sent: int("sent").default(0).notNull(),

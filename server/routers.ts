@@ -346,6 +346,8 @@ export const appRouter = router({
         contactListId: z.number().optional(),
         phoneNumberId: z.number().optional(),
         scheduledAt: z.string().optional(),
+        batchSize: z.number().min(1).max(500).default(10),
+        batchIntervalMinutes: z.number().min(1).max(1440).default(5),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -374,6 +376,8 @@ export const appRouter = router({
         status: z.enum(["draft", "scheduled", "active", "paused", "completed", "cancelled"]).optional(),
         scheduledAt: z.string().optional(),
         aiEnabled: z.boolean().optional(),
+        batchSize: z.number().min(1).max(500).optional(),
+        batchIntervalMinutes: z.number().min(1).max(1440).optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {

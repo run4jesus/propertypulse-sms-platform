@@ -88,3 +88,11 @@
 - [x] AI auto-response logic respects: global OFF = no AI anywhere; campaign ON + global ON = AI responds for that campaign's conversations; per-conversation toggle overrides campaign setting
 - [x] Visual indicator in campaign list showing AI on/off status per campaign (Bot icon + Switch)
 - [x] Visual indicator in messenger inbox showing AI on/off per conversation (Bot icon in list row)
+
+## Campaign Batch Throttling
+- [x] Add batchSize, batchIntervalMinutes columns to campaigns schema
+- [x] Push schema migration
+- [x] Update campaigns.create and campaigns.update routers to accept batchSize and batchIntervalMinutes
+- [x] Add batch throttling controls to campaign creation dialog (batch size input + interval input)
+- [x] Show batch settings in campaign detail panel
+- [x] Add edit batch settings in campaign detail panel for draft/paused campaigns

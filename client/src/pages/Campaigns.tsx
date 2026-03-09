@@ -28,6 +28,7 @@ import {
   ChevronRight,
   Loader2,
   Pause,
+  Pencil,
   Play,
   Plus,
   Trash2,
@@ -48,6 +49,67 @@ const STATUS_COLORS: Record<string, string> = {
 
 type Step = { stepNumber: number; body: string; delayDays: number; delayHours: number };
 
+function BatchEditDialog({
+  campaignId,
+  currentBatchSize,
+  currentInterval,
+  onSave,
+}: {
+  campaignId: number;
+  currentBatchSize: number;
+  currentInterval: number;
+  onSave: (batchSize: number, intervalMinutes: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [bs, setBs] = useState(currentBatchSize);
+  const [bi, setBi] = useState(currentInterval);
+
+  const handleOpen = (val: boolean) => {
+    if (val) { setBs(currentBatchSize); setBi(currentInterval); }
+    setOpen(val);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+          <Pencil className="h-3 w-3" />
+          Edit
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Edit Send Rate</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 mt-2">
+          <div>
+            <Label className="text-xs">Messages per batch</Label>
+            <Input
+              type="number" min={1} max={500} value={bs}
+              onChange={(e) => setBs(Math.max(1, parseInt(e.target.value) || 1))}
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Minutes between batches</Label>
+            <Input
+              type="number" min={1} max={1440} value={bi}
+              onChange={(e) => setBi(Math.max(1, parseInt(e.target.value) || 1))}
+              className="mt-1"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            ~{Math.round((bs / bi) * 60)} messages/hr
+          </p>
+          <Button className="w-full" onClick={() => { onSave(bs, bi); setOpen(false); toast.success("Send rate updated"); }}>
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Campaigns() {
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
@@ -60,6 +122,8 @@ export default function Campaigns() {
   const [listId, setListId] = useState<string>("");
   const [phoneId, setPhoneId] = useState<string>("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [batchSize, setBatchSize] = useState(10);
+  const [batchIntervalMinutes, setBatchIntervalMinutes] = useState(5);
   const [steps, setSteps] = useState<Step[]>([
     { stepNumber: 1, body: "", delayDays: 0, delayHours: 0 },
   ]);
@@ -114,6 +178,8 @@ export default function Campaigns() {
     setListId("");
     setPhoneId("");
     setScheduledAt("");
+    setBatchSize(10);
+    setBatchIntervalMinutes(5);
     setSteps([{ stepNumber: 1, body: "", delayDays: 0, delayHours: 0 }]);
   };
 
@@ -132,6 +198,8 @@ export default function Campaigns() {
       contactListId: listId ? parseInt(listId) : undefined,
       phoneNumberId: phoneId ? parseInt(phoneId) : undefined,
       scheduledAt: scheduledAt || undefined,
+      batchSize,
+      batchIntervalMinutes,
       steps: campaignSteps,
     });
   };
@@ -234,6 +302,43 @@ export default function Campaigns() {
                     onChange={(e) => setScheduledAt(e.target.value)}
                     className="mt-1"
                   />
+                </div>
+
+                {/* Batch throttling */}
+                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-3.5 w-3.5 text-primary" />
+                    <Label className="text-xs font-semibold">Send Rate / Batch Control</Label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Messages per batch</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={500}
+                        value={batchSize}
+                        onChange={(e) => setBatchSize(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="mt-1 h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Minutes between batches</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        value={batchIntervalMinutes}
+                        onChange={(e) => setBatchIntervalMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="mt-1 h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Sends <strong>{batchSize}</strong> message{batchSize !== 1 ? "s" : ""} every <strong>{batchIntervalMinutes}</strong> min
+                    {" — "}
+                    ~{Math.round((batchSize / batchIntervalMinutes) * 60)} msg/hr
+                  </p>
                 </div>
 
                 {type === "standard" ? (
@@ -439,6 +544,46 @@ export default function Campaigns() {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
+            </div>
+
+            {/* Batch Settings */}
+            <div className="rounded-lg border border-border bg-muted/30 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">Send Rate</span>
+                </div>
+                {(selectedCampaign.status === "draft" || selectedCampaign.status === "paused" || selectedCampaign.status === "scheduled") && (
+                  <BatchEditDialog
+                    campaignId={selectedId!}
+                    currentBatchSize={selectedCampaign.batchSize}
+                    currentInterval={selectedCampaign.batchIntervalMinutes}
+                    onSave={(bs, bi) => updateCampaign.mutate({ id: selectedId!, batchSize: bs, batchIntervalMinutes: bi })}
+                  />
+                )}
+              </div>
+              <div className="flex gap-6 mt-3">
+                <div>
+                  <p className="text-2xl font-bold">{selectedCampaign.batchSize}</p>
+                  <p className="text-xs text-muted-foreground">msgs per batch</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{selectedCampaign.batchIntervalMinutes}</p>
+                  <p className="text-xs text-muted-foreground">min between batches</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">
+                    ~{Math.round((selectedCampaign.batchSize / selectedCampaign.batchIntervalMinutes) * 60)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">msgs/hr</p>
+                </div>
+              </div>
+              {selectedCampaign.scheduledAt && (
+                <p className="text-xs text-muted-foreground mt-3">
+                  <Calendar className="h-3 w-3 inline mr-1" />
+                  Scheduled: {format(new Date(selectedCampaign.scheduledAt), "MMM d, yyyy h:mm a")}
+                </p>
+              )}
             </div>
 
             {/* Stats */}
