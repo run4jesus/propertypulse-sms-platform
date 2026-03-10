@@ -22,25 +22,27 @@ import Calendar from "./pages/Calendar";
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/messenger" component={Messenger} />
-      <Route path="/messenger/:id" component={Messenger} />
-      <Route path="/campaigns" component={Campaigns} />
-      <Route path="/campaigns/keywords" component={KeywordCampaigns} />
-      <Route path="/contacts" component={Contacts} />
-      <Route path="/contacts/groups" component={ContactGroups} />
-      <Route path="/contacts/management" component={ContactManagement} />
-      <Route path="/workflows" component={Workflows} />
-      <Route path="/macros" component={Macros} />
-      <Route path="/calendar" component={Calendar} />
-      <Route path="/calls" component={CallLogs} />
-      <Route path="/reporting" component={Reporting} />
-      <Route path="/templates" component={Templates} />
-      <Route path="/settings" component={Settings} />
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
+    <DashboardLayout>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/messenger" component={Messenger} />
+        <Route path="/messenger/:id" component={Messenger} />
+        <Route path="/campaigns" component={Campaigns} />
+        <Route path="/campaigns/keywords" component={KeywordCampaigns} />
+        <Route path="/contacts" component={Contacts} />
+        <Route path="/contacts/groups" component={ContactGroups} />
+        <Route path="/contacts/management" component={ContactManagement} />
+        <Route path="/workflows" component={Workflows} />
+        <Route path="/macros" component={Macros} />
+        <Route path="/calendar" component={Calendar} />
+        <Route path="/calls" component={CallLogs} />
+        <Route path="/reporting" component={Reporting} />
+        <Route path="/templates" component={Templates} />
+        <Route path="/settings" component={Settings} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </DashboardLayout>
   );
 }
 
