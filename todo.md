@@ -188,3 +188,22 @@
 
 ### Campaign Pause on Opt-Out
 - [x] Batch engine skips opted-out contacts in the send queue
+
+## Lead Disposition / Status Tagging in Messenger
+- [ ] Add `disposition` column to conversations table (enum: interested, not_interested, wrong_number, callback_requested, under_contract, closed, dnc, no_answer)
+- [ ] Push schema migration
+- [ ] Add conversations.setDisposition tRPC procedure
+- [ ] Quick-tap disposition bar in Messenger conversation header (colored pill buttons)
+- [ ] Disposition dropdown for full list of statuses
+- [ ] Disposition badge visible on each conversation row in the inbox list
+- [ ] Filter inbox by disposition (add to filter bar)
+- [ ] Disposition color coding: interested=green, not_interested=gray, wrong_number=orange, callback_requested=blue, under_contract=purple, closed=teal, dnc=red
+
+## Lead Disposition / Status Tagging in Messenger
+- [ ] Add disposition column to conversations schema
+- [ ] Push schema migration
+- [ ] Add conversations.setDisposition tRPC procedure
+- [ ] Quick-tap disposition pill buttons in Messenger conversation header
+- [ ] Disposition badge on each inbox conversation row
+- [ ] Filter inbox by disposition
+- [ ] Color coding per disposition status

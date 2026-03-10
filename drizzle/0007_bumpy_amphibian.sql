@@ -1,0 +1,1 @@
+ALTER TABLE `conversations` ADD `disposition` enum('interested','not_interested','wrong_number','callback_requested','under_contract','closed','dnc','no_answer');

@@ -132,11 +132,23 @@ export const conversations = mysqlTable("conversations", {
   unreadCount: int("unreadCount").default(0).notNull(),
   isStarred: boolean("isStarred").default(false).notNull(),
   status: mysqlEnum("status", ["active", "awaiting_reply", "unreplied", "opted_out", "closed"]).default("active").notNull(),
+  // Lead disposition — manually set by user
+  disposition: mysqlEnum("disposition", [
+    "interested",
+    "not_interested",
+    "wrong_number",
+    "callback_requested",
+    "under_contract",
+    "closed",
+    "dnc",
+    "no_answer",
+  ]),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type Conversation = typeof conversations.$inferSelect;
+export type ConversationDisposition = "interested" | "not_interested" | "wrong_number" | "callback_requested" | "under_contract" | "closed" | "dnc" | "no_answer";
 
 // ─── Conversation ↔ Label ─────────────────────────────────────────────────────
 export const conversationLabels = mysqlTable("conversation_labels", {

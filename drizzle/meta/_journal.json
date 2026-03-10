@@ -50,6 +50,13 @@
       "when": 1773093611387,
       "tag": "0006_burly_sumo",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1773105722822,
+      "tag": "0007_bumpy_amphibian",
+      "breakpoints": true
     }
   ]
 }

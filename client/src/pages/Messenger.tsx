@@ -50,6 +50,23 @@ const STATUS_FILTERS = [
   { label: "Starred", value: "starred" },
 ];
 
+type Disposition = "interested" | "not_interested" | "wrong_number" | "callback_requested" | "under_contract" | "closed" | "dnc" | "no_answer";
+
+const DISPOSITIONS: { value: Disposition; label: string; color: string; bg: string; dot: string }[] = [
+  { value: "interested",         label: "Interested",         color: "text-emerald-700", bg: "bg-emerald-100 hover:bg-emerald-200 border-emerald-300",  dot: "bg-emerald-500" },
+  { value: "not_interested",     label: "Not Interested",     color: "text-slate-600",   bg: "bg-slate-100 hover:bg-slate-200 border-slate-300",        dot: "bg-slate-400" },
+  { value: "wrong_number",       label: "Wrong Number",       color: "text-orange-700",  bg: "bg-orange-100 hover:bg-orange-200 border-orange-300",     dot: "bg-orange-500" },
+  { value: "callback_requested", label: "Call Me",            color: "text-blue-700",   bg: "bg-blue-100 hover:bg-blue-200 border-blue-300",           dot: "bg-blue-500" },
+  { value: "under_contract",     label: "Under Contract",     color: "text-violet-700", bg: "bg-violet-100 hover:bg-violet-200 border-violet-300",     dot: "bg-violet-500" },
+  { value: "closed",             label: "Closed",             color: "text-teal-700",   bg: "bg-teal-100 hover:bg-teal-200 border-teal-300",           dot: "bg-teal-500" },
+  { value: "dnc",                label: "DNC",                color: "text-red-700",    bg: "bg-red-100 hover:bg-red-200 border-red-300",              dot: "bg-red-500" },
+  { value: "no_answer",          label: "No Answer",          color: "text-gray-600",   bg: "bg-gray-100 hover:bg-gray-200 border-gray-300",           dot: "bg-gray-400" },
+];
+
+function getDisposition(value: string | null | undefined) {
+  return DISPOSITIONS.find((d) => d.value === value) ?? null;
+}
+
 function getScoreColor(score: number) {
   if (score >= 7) return "text-emerald-600 bg-emerald-50";
   if (score >= 4) return "text-amber-600 bg-amber-50";
@@ -177,6 +194,28 @@ export default function Messenger() {
     }
   };
 
+  const setDisposition = trpc.conversations.setDisposition.useMutation({
+    onSuccess: () => {
+      utils.conversations.get.invalidate({ id: selectedId! });
+      utils.conversations.list.invalidate();
+    },
+    onError: () => toast.error("Failed to update disposition"),
+  });
+
+  const handleDisposition = (value: Disposition | null) => {
+    if (!selectedId) return;
+    const current = conv?.disposition as Disposition | null | undefined;
+    // Toggle off if clicking the same one
+    const next = current === value ? null : value;
+    setDisposition.mutate({ id: selectedId, disposition: next });
+    if (next) {
+      const d = getDisposition(next);
+      toast.success(`Marked as ${d?.label}`);
+    } else {
+      toast("Disposition cleared");
+    }
+  };
+
   const handleAiToggle = (checked: boolean) => {
     if (!selectedId) return;
     updateConv.mutate({ id: selectedId, aiEnabled: checked });
@@ -274,7 +313,7 @@ export default function Messenger() {
                     <p className="text-xs text-muted-foreground truncate mt-0.5">
                       {cv.lastMessagePreview ?? "No messages"}
                     </p>
-                    <div className="flex items-center gap-1 mt-1">
+                    <div className="flex items-center gap-1 mt-1 flex-wrap">
                       {cv.status === "awaiting_reply" && (
                         <span className="text-xs bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-full">
                           Awaiting
@@ -291,6 +330,15 @@ export default function Messenger() {
                           {cv.leadScore}/10
                         </span>
                       ) : null}
+                      {(() => {
+                        const disp = getDisposition((cv as { disposition?: string }).disposition);
+                        return disp ? (
+                          <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full font-medium ${disp.bg} ${disp.color}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${disp.dot}`} />
+                            {disp.label}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                   {cv.unreadCount > 0 && (
@@ -310,113 +358,139 @@ export default function Messenger() {
         </ScrollArea>
       </div>
 
-      {/* Conversation View */}
-      {selectedId ? (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Conversation Header */}
-          <div className="h-14 border-b border-border px-4 flex items-center justify-between bg-card shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-sm font-semibold text-primary">
-                  {contactName.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div>
-                <p className="text-sm font-semibold leading-none">{contactName}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{contact?.phone}</p>
-              </div>
-              {/* Labels */}
-              <div className="flex gap-1 ml-2">
-                {convLabels.map((l) => (
-                  <span
-                    key={l.label.id}
-                    className="text-xs px-2 py-0.5 rounded-full font-medium"
-                    style={{ backgroundColor: l.label.color + "20", color: l.label.color }}
-                  >
-                    {l.label.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {/* AI per-conversation toggle */}
-              <div className="flex items-center gap-2 border border-border rounded-lg px-3 py-1.5">
-                <Bot className={`h-3.5 w-3.5 ${conv?.aiEnabled ? "text-primary" : "text-muted-foreground"}`} />
-                <span className="text-xs font-medium">AI</span>
-                <Switch
-                  checked={conv?.aiEnabled ?? false}
-                  onCheckedChange={handleAiToggle}
-                  className="scale-75"
-                />
-              </div>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => analyzeAI.mutate({ conversationId: selectedId })}
-                    disabled={analyzeAI.isPending}
-                  >
-                    {analyzeAI.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Analyze with AI</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={`h-8 w-8 ${conv?.isStarred ? "text-amber-500" : ""}`}
-                    onClick={handleStar}
-                  >
-                    <Star className={`h-4 w-4 ${conv?.isStarred ? "fill-amber-500" : ""}`} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Star conversation</TooltipContent>
-              </Tooltip>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {labels?.map((label) => (
-                    <DropdownMenuItem
-                      key={label.id}
-                      onClick={() => {
-                        trpc.conversations.assignLabel.useMutation();
-                      }}
-                    >
+        {/* Conversation View */}
+        {selectedId ? (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Conversation Header */}
+            <div className="border-b border-border bg-card shrink-0">
+              {/* Top row: contact info + action buttons */}
+              <div className="h-14 px-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-sm font-semibold text-primary">
+                      {contactName.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold leading-none">{contactName}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{contact?.phone}</p>
+                  </div>
+                  {/* Labels */}
+                  <div className="flex gap-1 ml-2">
+                    {convLabels.map((l) => (
                       <span
-                        className="h-2 w-2 rounded-full mr-2"
-                        style={{ backgroundColor: label.color }}
-                      />
-                      {label.name}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuItem
-                    onClick={() =>
-                      updateConv.mutate({ id: selectedId, status: "opted_out" })
-                    }
-                    className="text-destructive"
-                  >
-                    Mark as Opted Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                        key={l.label.id}
+                        className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ backgroundColor: l.label.color + "20", color: l.label.color }}
+                      >
+                        {l.label.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* AI per-conversation toggle */}
+                  <div className="flex items-center gap-2 border border-border rounded-lg px-3 py-1.5">
+                    <Bot className={`h-3.5 w-3.5 ${conv?.aiEnabled ? "text-primary" : "text-muted-foreground"}`} />
+                    <span className="text-xs font-medium">AI</span>
+                    <Switch
+                      checked={conv?.aiEnabled ?? false}
+                      onCheckedChange={handleAiToggle}
+                      className="scale-75"
+                    />
+                  </div>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => analyzeAI.mutate({ conversationId: selectedId })}
+                        disabled={analyzeAI.isPending}
+                      >
+                        {analyzeAI.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Analyze with AI</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-8 w-8 ${conv?.isStarred ? "text-amber-500" : ""}`}
+                        onClick={handleStar}
+                      >
+                        <Star className={`h-4 w-4 ${conv?.isStarred ? "fill-amber-500" : ""}`} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Star conversation</TooltipContent>
+                  </Tooltip>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {labels?.map((label) => (
+                        <DropdownMenuItem
+                          key={label.id}
+                          onClick={() => {
+                            trpc.conversations.assignLabel.useMutation();
+                          }}
+                        >
+                          <span
+                            className="h-2 w-2 rounded-full mr-2"
+                            style={{ backgroundColor: label.color }}
+                          />
+                          {label.name}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuItem
+                        onClick={() =>
+                          updateConv.mutate({ id: selectedId, status: "opted_out" })
+                        }
+                        className="text-destructive"
+                      >
+                        Mark as Opted Out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {/* Disposition bar — quick-tap pills */}
+              <div className="px-4 pb-2 flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs text-muted-foreground font-medium mr-1">Mark:</span>
+                {DISPOSITIONS.map((d) => {
+                  const isActive = conv?.disposition === d.value;
+                  return (
+                    <button
+                      key={d.value}
+                      onClick={() => handleDisposition(d.value as Disposition)}
+                      disabled={setDisposition.isPending}
+                      className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${
+                        isActive
+                          ? `${d.bg} ${d.color} ring-2 ring-offset-1 ring-current/30`
+                          : `${d.bg} ${d.color} opacity-70 hover:opacity-100`
+                      }`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${d.dot} ${isActive ? "" : "opacity-60"}`} />
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
           {/* Messages */}
           <ScrollArea className="flex-1 p-4">

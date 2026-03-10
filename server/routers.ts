@@ -358,10 +358,21 @@ export const appRouter = router({
         status: z.enum(["active", "awaiting_reply", "unreplied", "opted_out", "closed"]).optional(),
         isStarred: z.boolean().optional(),
         aiEnabled: z.boolean().optional(),
+        disposition: z.enum(["interested", "not_interested", "wrong_number", "callback_requested", "under_contract", "closed", "dnc", "no_answer"]).nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { id, ...data } = input;
         await updateConversation(id, ctx.user.id, data);
+        return { success: true };
+      }),
+
+    setDisposition: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        disposition: z.enum(["interested", "not_interested", "wrong_number", "callback_requested", "under_contract", "closed", "dnc", "no_answer"]).nullable(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await updateConversation(input.id, ctx.user.id, { disposition: input.disposition });
         return { success: true };
       }),
 
