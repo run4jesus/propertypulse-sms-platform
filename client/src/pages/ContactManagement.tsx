@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,8 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
+  Upload,
+  FileUp,
 } from "lucide-react";
 
 const LIST_TYPES = [
@@ -268,6 +270,175 @@ function DncScrubPanel() {
   );
 }
 
+function BulkDncImportPanel() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [parsedPhones, setParsedPhones] = useState<string[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [reason, setReason] = useState("");
+  const [importResult, setImportResult] = useState<{ added: number; skipped: number; total: number } | null>(null);
+  const utils = trpc.useUtils();
+
+  const bulkImport = trpc.contactManagement.bulkImportDnc.useMutation({
+    onSuccess: (result) => {
+      setImportResult(result);
+      setParsedPhones([]);
+      setFileName("");
+      utils.contactManagement.list.invalidate();
+      toast.success(`Import complete: ${result.added} added, ${result.skipped} skipped`);
+    },
+    onError: (err) => toast.error("Import failed: " + err.message),
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setImportResult(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      // Extract phone numbers: strip non-digits, accept 10 or 11 digit numbers
+      const lines = text.split(/[\r\n,;\t]+/);
+      const phones: string[] = [];
+      for (const line of lines) {
+        const raw = line.trim();
+        const digits = raw.replace(/\D/g, "");
+        if (digits.length === 10) phones.push(`+1${digits}`);
+        else if (digits.length === 11 && digits.startsWith("1")) phones.push(`+${digits}`);
+      }
+      setParsedPhones(Array.from(new Set(phones))); // deduplicate
+    };
+    reader.readAsText(file);
+    // Reset file input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const handleImport = () => {
+    if (parsedPhones.length === 0) return;
+    bulkImport.mutate({ phones: parsedPhones, reason: reason || "Bulk DNC import" });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-semibold text-foreground flex items-center gap-2">
+          <FileUp className="w-5 h-5 text-red-500" />
+          Bulk DNC Import
+        </h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Upload a CSV or TXT file with phone numbers to add them all to your internal DNC list at once.
+          One phone number per line, or comma/tab separated.
+        </p>
+      </div>
+
+      <Card className="border-border">
+        <CardContent className="p-6 space-y-4">
+          {/* File Upload */}
+          <div
+            className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-sm font-medium text-foreground">
+              {fileName ? fileName : "Click to upload CSV or TXT file"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Accepts .csv, .txt — one phone per line or comma/tab separated
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.txt,text/csv,text/plain"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </div>
+
+          {/* Parsed preview */}
+          {parsedPhones.length > 0 && (
+            <div className="rounded-lg bg-muted/30 border border-border p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-foreground">Preview</p>
+                <Badge variant="outline">{parsedPhones.length.toLocaleString()} phone numbers found</Badge>
+              </div>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {parsedPhones.slice(0, 10).map((p, i) => (
+                  <p key={i} className="text-xs text-muted-foreground font-mono">{p}</p>
+                ))}
+                {parsedPhones.length > 10 && (
+                  <p className="text-xs text-muted-foreground italic">...and {parsedPhones.length - 10} more</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Optional reason */}
+          <div>
+            <label className="text-xs font-medium text-foreground block mb-1">Reason (optional)</label>
+            <input
+              type="text"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              placeholder="e.g. Purchased DNC list, Prior opt-outs..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+
+          <Button
+            className="w-full"
+            disabled={parsedPhones.length === 0 || bulkImport.isPending}
+            onClick={handleImport}
+          >
+            {bulkImport.isPending ? (
+              <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Importing...</>
+            ) : (
+              <><Upload className="w-4 h-4 mr-2" /> Import {parsedPhones.length > 0 ? `${parsedPhones.length.toLocaleString()} Numbers` : "to DNC List"}</>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Result */}
+      {importResult && (
+        <Card className="border-green-200 bg-green-50/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              <p className="font-medium text-green-800">Import Complete</p>
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-xl font-bold text-foreground">{importResult.total.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Total in file</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-green-700">{importResult.added.toLocaleString()}</p>
+                <p className="text-xs text-green-600">Added to DNC</p>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-muted-foreground">{importResult.skipped.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Already on list</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border-border bg-muted/30">
+        <CardContent className="p-4">
+          <p className="text-xs font-medium text-foreground mb-2">Tips for bulk DNC import</p>
+          <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+            <li>Phone numbers can be in any format — dashes, spaces, and parentheses are stripped automatically</li>
+            <li>Duplicate numbers in the file are deduplicated before import</li>
+            <li>Numbers already on your DNC list are skipped (not duplicated)</li>
+            <li>Matching contacts in your system will have their DNC status updated automatically</li>
+          </ul>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function ContactManagement() {
   const [activeTab, setActiveTab] = useState("opted_out");
 
@@ -317,11 +488,24 @@ export default function ContactManagement() {
             <Shield className={`w-4 h-4 ${activeTab === "dnc_scrub" ? "" : "text-blue-500"}`} />
             DNC Scrub
           </button>
+          <button
+            onClick={() => setActiveTab("bulk_dnc_import")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+              activeTab === "bulk_dnc_import"
+                ? "bg-red-600 text-white border-red-600"
+                : "bg-background text-muted-foreground border-border hover:border-red-400 hover:text-foreground"
+            }`}
+          >
+            <FileUp className={`w-4 h-4 ${activeTab === "bulk_dnc_import" ? "" : "text-red-500"}`} />
+            Bulk DNC Import
+          </button>
         </div>
 
         {/* DNC Scrub Panel */}
         {activeTab === "dnc_scrub" ? (
           <DncScrubPanel />
+        ) : activeTab === "bulk_dnc_import" ? (
+          <BulkDncImportPanel />
         ) : (
           <div>
             <div className="flex items-center gap-3 mb-4">

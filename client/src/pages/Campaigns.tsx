@@ -152,6 +152,18 @@ export default function Campaigns() {
     { enabled: !!selectedId }
   );
 
+  const parsedListId = listId ? parseInt(listId) : undefined;
+  const { data: scrubPreview, isFetching: scrubPreviewLoading } = trpc.campaigns.scrubPreview.useQuery(
+    {
+      contactListId: parsedListId!,
+      scrubInternalDnc,
+      scrubLitigators,
+      scrubFederalDnc,
+      scrubExistingContacts,
+    },
+    { enabled: !!parsedListId }
+  );
+
   const createCampaign = trpc.campaigns.create.useMutation({
     onSuccess: () => {
       toast.success("Campaign created");
@@ -461,6 +473,62 @@ export default function Campaigns() {
                     </div>
                   </label>
                 </div>
+
+                {/* Scrub Preview Summary */}
+                {parsedListId && (
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                      <p className="text-xs font-semibold">Scrub Preview</p>
+                      {scrubPreviewLoading && <span className="text-xs text-muted-foreground">Calculating...</span>}
+                    </div>
+                    {scrubPreview && !scrubPreviewLoading && (
+                      <>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-muted-foreground">Total contacts in list</span>
+                          <span className="text-xs font-medium">{scrubPreview.total.toLocaleString()}</span>
+                        </div>
+                        {scrubPreview.removedOptedOut > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Opted out (always blocked)</span>
+                            <span className="text-xs text-destructive">−{scrubPreview.removedOptedOut.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {scrubPreview.removedInternalDnc > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Internal DNC</span>
+                            <span className="text-xs text-destructive">−{scrubPreview.removedInternalDnc.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {scrubPreview.removedLitigators > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">TCPA litigators</span>
+                            <span className="text-xs text-destructive">−{scrubPreview.removedLitigators.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {scrubPreview.removedFederalDnc > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Federal DNC</span>
+                            <span className="text-xs text-destructive">−{scrubPreview.removedFederalDnc.toLocaleString()}</span>
+                          </div>
+                        )}
+                        {scrubPreview.removedExisting > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Existing in system</span>
+                            <span className="text-xs text-destructive">−{scrubPreview.removedExisting.toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                          <span className="text-xs font-semibold">Will be sent to</span>
+                          <span className="text-xs font-bold text-green-600">{scrubPreview.sendable.toLocaleString()} contacts</span>
+                        </div>
+                      </>
+                    )}
+                    {!scrubPreview && !scrubPreviewLoading && (
+                      <p className="text-xs text-muted-foreground">Select a contact list to see preview</p>
+                    )}
+                  </div>
+                )}
 
                 {type === "standard" ? (
                   <div>

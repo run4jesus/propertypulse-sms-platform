@@ -266,3 +266,9 @@
 - [x] Rename scrubLitigators to be litigators-only (not combined), keep default true
 - [x] Update batch engine to check scrubFederalDnc separately from scrubLitigators
 - [x] Split UI checkbox into two: "TCPA Litigators" and "Federal DNC (National Registry)"
+
+## Scrub Preview Count & Bulk DNC Import
+- [x] Backend: campaigns.scrubPreview procedure — counts total contacts, removed per filter, and sendable count for a given contactListId + scrub flags
+- [x] Frontend: show scrub preview summary in campaign creation wizard when a contact list is selected
+- [x] Backend: contactManagement.bulkImportDnc procedure — accepts array of phone numbers, adds each to internal DNC list
+- [x] Frontend: bulk DNC CSV upload UI in Contact Management page (upload CSV, parse phones, preview count, confirm import)

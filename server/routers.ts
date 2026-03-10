@@ -94,7 +94,7 @@ import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
 import { and, eq, sql } from "drizzle-orm";
-import { contacts, contactManagement as contactManagementTable } from "../drizzle/schema";
+import { contacts, contactManagement as contactManagementTable, contactListMembers, contactLists } from "../drizzle/schema";
 
 export const appRouter = router({
   system: systemRouter,
@@ -522,6 +522,95 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    // Scrub preview: count how many contacts each filter would remove for a given list
+    scrubPreview: protectedProcedure
+      .input(z.object({
+        contactListId: z.number(),
+        scrubInternalDnc: z.boolean().default(true),
+        scrubLitigators: z.boolean().default(true),
+        scrubFederalDnc: z.boolean().default(false),
+        scrubExistingContacts: z.boolean().default(false),
+      }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+
+        // Get all contacts in this list
+        const listContacts = await db
+          .select({ contact: contacts })
+          .from(contactListMembers)
+          .innerJoin(contacts, eq(contactListMembers.contactId, contacts.id))
+          .where(and(
+            eq(contactListMembers.listId, input.contactListId),
+            eq(contacts.userId, ctx.user.id)
+          ));
+
+        const total = listContacts.length;
+        let removedOptedOut = 0;
+        let removedInternalDnc = 0;
+        let removedLitigators = 0;
+        let removedFederalDnc = 0;
+        let removedExisting = 0;
+
+        for (const { contact } of listContacts) {
+          // Always count opted-out
+          if (contact.optedOut) { removedOptedOut++; continue; }
+
+          if (input.scrubLitigators && (contact as any).litigatorFlag) { removedLitigators++; continue; }
+          if (input.scrubFederalDnc && (contact as any).dncStatus === "federal_dnc") { removedFederalDnc++; continue; }
+
+          // Internal DNC: check dncStatus column
+          if (input.scrubInternalDnc && (contact as any).dncStatus && !(["clean", "federal_dnc"].includes((contact as any).dncStatus))) {
+            removedInternalDnc++; continue;
+          }
+
+          // Internal DNC: check contactManagement table
+          if (input.scrubInternalDnc) {
+            const [inDnc] = await db.select({ id: contactManagementTable.id })
+              .from(contactManagementTable)
+              .where(and(
+                eq(contactManagementTable.userId, ctx.user.id),
+                eq(contactManagementTable.phone, contact.phone),
+                eq(contactManagementTable.listType, "dnc")
+              )).limit(1);
+            if (inDnc) { removedInternalDnc++; continue; }
+          }
+
+          // Opted-out list
+          const [optedOut] = await db.select({ id: contactManagementTable.id })
+            .from(contactManagementTable)
+            .where(and(
+              eq(contactManagementTable.userId, ctx.user.id),
+              eq(contactManagementTable.phone, contact.phone),
+              eq(contactManagementTable.listType, "opted_out")
+            )).limit(1);
+          if (optedOut) { removedOptedOut++; continue; }
+
+          // Existing contacts in other lists
+          if (input.scrubExistingContacts) {
+            const [existing] = await db.select({ id: contacts.id })
+              .from(contacts)
+              .where(and(
+                eq(contacts.userId, ctx.user.id),
+                eq(contacts.phone, contact.phone),
+                sql`${contacts.id} != ${contact.id}`
+              )).limit(1);
+            if (existing) { removedExisting++; continue; }
+          }
+        }
+
+        const totalRemoved = removedOptedOut + removedInternalDnc + removedLitigators + removedFederalDnc + removedExisting;
+        return {
+          total,
+          sendable: total - totalRemoved,
+          removedOptedOut,
+          removedInternalDnc,
+          removedLitigators,
+          removedFederalDnc,
+          removedExisting,
+        };
+      }),
+
     templates: router({
       list: protectedProcedure.query(async ({ ctx }) => {
         return getCampaignTemplates(ctx.user.id);
@@ -857,6 +946,60 @@ ${transcript}`,
       .mutation(async ({ ctx, input }) => {
         await removeFromContactManagement(input.id, ctx.user.id);
         return { success: true };
+      }),
+
+    // Bulk import phone numbers to internal DNC list from CSV
+    bulkImportDnc: protectedProcedure
+      .input(z.object({
+        phones: z.array(z.string()).min(1).max(50000),
+        reason: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        const normalizePhone = (p: string) => {
+          const digits = p.replace(/\D/g, "");
+          if (digits.length === 10) return `+1${digits}`;
+          if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+          return digits.length >= 10 ? `+${digits}` : "";
+        };
+        let added = 0;
+        let skipped = 0;
+        for (const rawPhone of input.phones) {
+          const phone = normalizePhone(rawPhone);
+          if (!phone || phone.length < 10) { skipped++; continue; }
+          // Check if already on DNC list
+          const [existing] = await db
+            .select({ id: contactManagementTable.id })
+            .from(contactManagementTable)
+            .where(and(
+              eq(contactManagementTable.userId, ctx.user.id),
+              eq(contactManagementTable.phone, phone),
+              eq(contactManagementTable.listType, "dnc")
+            ))
+            .limit(1);
+          if (existing) { skipped++; continue; }
+          // Find matching contact if exists
+          const [matchedContact] = await db
+            .select({ id: contacts.id })
+            .from(contacts)
+            .where(and(eq(contacts.userId, ctx.user.id), eq(contacts.phone, phone)))
+            .limit(1);
+          await db.insert(contactManagementTable).values({
+            userId: ctx.user.id,
+            contactId: matchedContact?.id ?? 0,
+            phone,
+            listType: "dnc",
+            reason: input.reason ?? "Bulk DNC import",
+          });
+          // Also update dncStatus on the contact record if found
+          if (matchedContact) {
+            await db.update(contacts).set({ dncStatus: "internal_dnc" })
+              .where(and(eq(contacts.id, matchedContact.id), eq(contacts.userId, ctx.user.id)));
+          }
+          added++;
+        }
+        return { added, skipped, total: input.phones.length };
       }),
 
     // Convenience: mark a contact as internal DNC from any screen
