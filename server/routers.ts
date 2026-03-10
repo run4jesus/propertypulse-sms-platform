@@ -450,6 +450,9 @@ export const appRouter = router({
         sendWindowStart: z.string().regex(/^\d{2}:\d{2}$/).default("09:00"),
         sendWindowEnd: z.string().regex(/^\d{2}:\d{2}$/).default("20:00"),
         optOutFooter: z.boolean().default(true),
+        scrubInternalDnc: z.boolean().default(true),
+        scrubLitigators: z.boolean().default(true),
+        scrubExistingContacts: z.boolean().default(false),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -483,6 +486,9 @@ export const appRouter = router({
         sendWindowStart: z.string().regex(/^\d{2}:\d{2}$/).optional(),
         sendWindowEnd: z.string().regex(/^\d{2}:\d{2}$/).optional(),
         optOutFooter: z.boolean().optional(),
+        scrubInternalDnc: z.boolean().optional(),
+        scrubLitigators: z.boolean().optional(),
+        scrubExistingContacts: z.boolean().optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {

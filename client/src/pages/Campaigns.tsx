@@ -34,6 +34,7 @@ import {
   Plus,
   Trash2,
   Zap,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Popover,
@@ -133,6 +134,9 @@ export default function Campaigns() {
   const [sendWindowStart, setSendWindowStart] = useState("09:00");
   const [sendWindowEnd, setSendWindowEnd] = useState("20:00");
   const [optOutFooter, setOptOutFooter] = useState(true);
+  const [scrubInternalDnc, setScrubInternalDnc] = useState(true);
+  const [scrubLitigators, setScrubLitigators] = useState(true);
+  const [scrubExistingContacts, setScrubExistingContacts] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [steps, setSteps] = useState<Step[]>([
     { stepNumber: 1, body: "", delayDays: 0, delayHours: 0 },
@@ -194,6 +198,9 @@ export default function Campaigns() {
     setSendWindowStart("09:00");
     setSendWindowEnd("20:00");
     setOptOutFooter(true);
+    setScrubInternalDnc(true);
+    setScrubLitigators(true);
+    setScrubExistingContacts(false);
     setSteps([{ stepNumber: 1, body: "", delayDays: 0, delayHours: 0 }]);
   };
 
@@ -218,6 +225,9 @@ export default function Campaigns() {
       sendWindowEnd,
       steps: campaignSteps,
       optOutFooter,
+      scrubInternalDnc,
+      scrubLitigators,
+      scrubExistingContacts,
     });
   };
 
@@ -389,6 +399,51 @@ export default function Campaigns() {
                     <p className="text-xs text-muted-foreground">Appends "Reply STOP to opt out." to every message</p>
                   </div>
                   <Switch checked={optOutFooter} onCheckedChange={setOptOutFooter} />
+                </div>
+
+                {/* Scrub filters */}
+                <div className="rounded-lg border border-border p-3 space-y-3">
+                  <p className="text-xs font-semibold text-foreground">Scrub Filters</p>
+                  <p className="text-xs text-muted-foreground -mt-1">Choose which lists to scrub before sending. Opt-outs are always blocked.</p>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+                      checked={scrubInternalDnc}
+                      onChange={(e) => setScrubInternalDnc(e.target.checked)}
+                    />
+                    <div>
+                      <p className="text-xs font-medium">Internal DNC list</p>
+                      <p className="text-xs text-muted-foreground">Skip contacts you have manually marked as Do Not Contact</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+                      checked={scrubLitigators}
+                      onChange={(e) => setScrubLitigators(e.target.checked)}
+                    />
+                    <div>
+                      <p className="text-xs font-medium">National litigators &amp; federal DNC</p>
+                      <p className="text-xs text-muted-foreground">Skip contacts flagged as TCPA litigators or on the national DNC registry</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+                      checked={scrubExistingContacts}
+                      onChange={(e) => setScrubExistingContacts(e.target.checked)}
+                    />
+                    <div>
+                      <p className="text-xs font-medium">Existing contacts in system</p>
+                      <p className="text-xs text-muted-foreground">Skip contacts whose phone number already exists in another list — uncheck to allow texting from a different number</p>
+                    </div>
+                  </label>
                 </div>
 
                 {type === "standard" ? (
@@ -694,6 +749,42 @@ export default function Campaigns() {
                   Scheduled: {format(new Date(selectedCampaign.scheduledAt), "MMM d, yyyy h:mm a")}
                 </p>
               )}
+            </div>
+
+            {/* Scrub Filters (detail view) */}
+            <div className="rounded-lg border border-border bg-muted/30 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Scrub Filters</span>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { key: "scrubInternalDnc" as const, label: "Internal DNC list", desc: "Skip contacts marked Do Not Contact" },
+                  { key: "scrubLitigators" as const, label: "National litigators & federal DNC", desc: "Skip TCPA litigators and national DNC" },
+                  { key: "scrubExistingContacts" as const, label: "Existing contacts in system", desc: "Skip phones already in another list" },
+                ].map(({ key, label, desc }) => (
+                  <label key={key} className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+                      checked={!!(selectedCampaign as any)[key]}
+                      onChange={(e) => {
+                        if (selectedCampaign.status === "draft" || selectedCampaign.status === "paused" || selectedCampaign.status === "scheduled") {
+                          updateCampaign.mutate({ id: selectedId!, [key]: e.target.checked });
+                        }
+                      }}
+                      disabled={selectedCampaign.status === "active" || selectedCampaign.status === "completed" || selectedCampaign.status === "cancelled"}
+                    />
+                    <div>
+                      <p className="text-xs font-medium">{label}</p>
+                      <p className="text-xs text-muted-foreground">{desc}</p>
+                    </div>
+                  </label>
+                ))}
+                {(selectedCampaign.status === "active" || selectedCampaign.status === "completed") && (
+                  <p className="text-xs text-muted-foreground italic">Pause the campaign to change scrub settings.</p>
+                )}
+              </div>
             </div>
 
             {/* Stats */}

@@ -511,14 +511,17 @@ export async function processCampaignBatches() {
       let sentCount = 0;
 
       for (const { contact } of batchContacts) {
-        // Skip opted-out contacts
+        // Always skip opted-out contacts (hard block, not a user toggle)
         if (contact.optedOut) continue;
 
-        // Skip contacts flagged as litigators or DNC
-        if ((contact as any).litigatorFlag) continue;
-        if ((contact as any).dncStatus && (contact as any).dncStatus !== "clean") continue;
+        // Scrub litigators — only if campaign has scrubLitigators enabled
+        if (campaign.scrubLitigators && (contact as any).litigatorFlag) continue;
 
-        // Check contact management opt-out list
+        // Scrub contacts whose dncStatus is not clean — only if scrubInternalDnc is enabled
+        // (federal_dnc, state_dnc, dnc_complainers, internal_dnc all blocked)
+        if (campaign.scrubInternalDnc && (contact as any).dncStatus && (contact as any).dncStatus !== "clean") continue;
+
+        // Always check opt-out list (hard block — TCPA compliance, not a user toggle)
         const [optedOut] = await db
           .select()
           .from(contactManagement)
@@ -532,19 +535,39 @@ export async function processCampaignBatches() {
           .limit(1);
         if (optedOut) continue;
 
-        // Check internal DNC list
-        const [internalDnc] = await db
-          .select()
-          .from(contactManagement)
-          .where(
-            and(
-              eq(contactManagement.userId, campaign.userId),
-              eq(contactManagement.phone, contact.phone),
-              eq(contactManagement.listType, "dnc")
+        // Scrub internal DNC list — only if campaign has scrubInternalDnc enabled
+        if (campaign.scrubInternalDnc) {
+          const [internalDnc] = await db
+            .select()
+            .from(contactManagement)
+            .where(
+              and(
+                eq(contactManagement.userId, campaign.userId),
+                eq(contactManagement.phone, contact.phone),
+                eq(contactManagement.listType, "dnc")
+              )
             )
-          )
-          .limit(1);
-        if (internalDnc) continue;
+            .limit(1);
+          if (internalDnc) continue;
+        }
+
+        // Scrub existing contacts — skip if this contact's phone already exists in another contact list
+        // Only if campaign has scrubExistingContacts enabled
+        if (campaign.scrubExistingContacts) {
+          const [existingContact] = await db
+            .select({ id: contacts.id })
+            .from(contacts)
+            .where(
+              and(
+                eq(contacts.userId, campaign.userId),
+                eq(contacts.phone, contact.phone),
+                // Exclude the contact itself — only skip if it exists in a DIFFERENT list
+                sql`${contacts.id} != ${contact.id}`
+              )
+            )
+            .limit(1);
+          if (existingContact) continue;
+        }
 
         // Get the campaign message body (step 1 for standard campaigns)
         // For drip campaigns this would use the step body — simplified here to use campaign name as placeholder

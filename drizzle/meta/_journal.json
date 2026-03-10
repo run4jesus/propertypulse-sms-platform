@@ -64,6 +64,13 @@
       "when": 1773178270999,
       "tag": "0008_shocking_hobgoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1773181809299,
+      "tag": "0009_youthful_victor_mancha",
+      "breakpoints": true
     }
   ]
 }

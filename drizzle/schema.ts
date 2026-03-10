@@ -211,6 +211,10 @@ export const campaigns = mysqlTable("campaigns", {
   sendWindowEnd: varchar("sendWindowEnd", { length: 5 }).default("20:00").notNull(),
   // Opt-out footer toggle
   optOutFooter: boolean("optOutFooter").default(true).notNull(),
+  // Campaign-level scrub filters — user chooses which scrubs to apply per campaign
+  scrubInternalDnc: boolean("scrubInternalDnc").default(true).notNull(),
+  scrubLitigators: boolean("scrubLitigators").default(true).notNull(),
+  scrubExistingContacts: boolean("scrubExistingContacts").default(false).notNull(),
   // Batch send engine tracking
   lastBatchSentAt: timestamp("lastBatchSentAt"),
   nextBatchOffset: int("nextBatchOffset").default(0).notNull(),

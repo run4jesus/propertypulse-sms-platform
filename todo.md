@@ -253,3 +253,10 @@
 - [x] Show a subtle divider/label in thread when sender number changed
 - [x] Conversation list groups by contact phone number (not by sender number) to avoid duplicate threads
 - [x] Merge duplicate conversations for same contact phone into one unified thread
+
+## Campaign-Level Scrub Filters
+- [x] Add scrubInternalDnc, scrubLitigators, scrubExistingContacts boolean columns to campaigns schema
+- [x] Update batch send engine to respect per-campaign scrub flags
+- [x] Add scrub filter checkboxes to campaign creation wizard
+- [x] Add scrub filter checkboxes to campaign edit page
+- [x] Default: scrubInternalDnc=true, scrubLitigators=true, scrubExistingContacts=false
