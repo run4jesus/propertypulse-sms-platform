@@ -214,6 +214,7 @@ export const campaigns = mysqlTable("campaigns", {
   // Campaign-level scrub filters — user chooses which scrubs to apply per campaign
   scrubInternalDnc: boolean("scrubInternalDnc").default(true).notNull(),
   scrubLitigators: boolean("scrubLitigators").default(true).notNull(),
+  scrubFederalDnc: boolean("scrubFederalDnc").default(false).notNull(),
   scrubExistingContacts: boolean("scrubExistingContacts").default(false).notNull(),
   // Batch send engine tracking
   lastBatchSentAt: timestamp("lastBatchSentAt"),

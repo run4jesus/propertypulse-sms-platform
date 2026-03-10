@@ -452,6 +452,7 @@ export const appRouter = router({
         optOutFooter: z.boolean().default(true),
         scrubInternalDnc: z.boolean().default(true),
         scrubLitigators: z.boolean().default(true),
+        scrubFederalDnc: z.boolean().default(false),
         scrubExistingContacts: z.boolean().default(false),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
@@ -488,6 +489,7 @@ export const appRouter = router({
         optOutFooter: z.boolean().optional(),
         scrubInternalDnc: z.boolean().optional(),
         scrubLitigators: z.boolean().optional(),
+        scrubFederalDnc: z.boolean().optional(),
         scrubExistingContacts: z.boolean().optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))

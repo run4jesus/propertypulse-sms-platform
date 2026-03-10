@@ -1,0 +1,1 @@
+ALTER TABLE `campaigns` ADD `scrubFederalDnc` boolean DEFAULT false NOT NULL;

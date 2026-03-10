@@ -514,12 +514,14 @@ export async function processCampaignBatches() {
         // Always skip opted-out contacts (hard block, not a user toggle)
         if (contact.optedOut) continue;
 
-        // Scrub litigators — only if campaign has scrubLitigators enabled
+        // Scrub TCPA litigators — only if campaign has scrubLitigators enabled
         if (campaign.scrubLitigators && (contact as any).litigatorFlag) continue;
 
-        // Scrub contacts whose dncStatus is not clean — only if scrubInternalDnc is enabled
-        // (federal_dnc, state_dnc, dnc_complainers, internal_dnc all blocked)
-        if (campaign.scrubInternalDnc && (contact as any).dncStatus && (contact as any).dncStatus !== "clean") continue;
+        // Scrub federal/national DNC — only if campaign has scrubFederalDnc enabled
+        if (campaign.scrubFederalDnc && (contact as any).dncStatus === "federal_dnc") continue;
+
+        // Scrub internal DNC status flags (state_dnc, dnc_complainers) — only if scrubInternalDnc is enabled
+        if (campaign.scrubInternalDnc && (contact as any).dncStatus && !(["clean", "federal_dnc"].includes((contact as any).dncStatus))) continue;
 
         // Always check opt-out list (hard block — TCPA compliance, not a user toggle)
         const [optedOut] = await db

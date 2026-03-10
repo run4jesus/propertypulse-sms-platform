@@ -260,3 +260,9 @@
 - [x] Add scrub filter checkboxes to campaign creation wizard
 - [x] Add scrub filter checkboxes to campaign edit page
 - [x] Default: scrubInternalDnc=true, scrubLitigators=true, scrubExistingContacts=false
+
+## Split Litigator / Federal DNC Scrub Checkboxes
+- [x] Add scrubFederalDnc boolean column to campaigns schema (default false)
+- [x] Rename scrubLitigators to be litigators-only (not combined), keep default true
+- [x] Update batch engine to check scrubFederalDnc separately from scrubLitigators
+- [x] Split UI checkbox into two: "TCPA Litigators" and "Federal DNC (National Registry)"

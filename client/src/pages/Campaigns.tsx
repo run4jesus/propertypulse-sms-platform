@@ -136,6 +136,7 @@ export default function Campaigns() {
   const [optOutFooter, setOptOutFooter] = useState(true);
   const [scrubInternalDnc, setScrubInternalDnc] = useState(true);
   const [scrubLitigators, setScrubLitigators] = useState(true);
+  const [scrubFederalDnc, setScrubFederalDnc] = useState(false);
   const [scrubExistingContacts, setScrubExistingContacts] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [steps, setSteps] = useState<Step[]>([
@@ -200,6 +201,7 @@ export default function Campaigns() {
     setOptOutFooter(true);
     setScrubInternalDnc(true);
     setScrubLitigators(true);
+    setScrubFederalDnc(false);
     setScrubExistingContacts(false);
     setSteps([{ stepNumber: 1, body: "", delayDays: 0, delayHours: 0 }]);
   };
@@ -227,6 +229,7 @@ export default function Campaigns() {
       optOutFooter,
       scrubInternalDnc,
       scrubLitigators,
+      scrubFederalDnc,
       scrubExistingContacts,
     });
   };
@@ -427,8 +430,21 @@ export default function Campaigns() {
                       onChange={(e) => setScrubLitigators(e.target.checked)}
                     />
                     <div>
-                      <p className="text-xs font-medium">National litigators &amp; federal DNC</p>
-                      <p className="text-xs text-muted-foreground">Skip contacts flagged as TCPA litigators or on the national DNC registry</p>
+                      <p className="text-xs font-medium">TCPA litigators</p>
+                      <p className="text-xs text-muted-foreground">Skip contacts flagged as known TCPA lawsuit filers</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+                      checked={scrubFederalDnc}
+                      onChange={(e) => setScrubFederalDnc(e.target.checked)}
+                    />
+                    <div>
+                      <p className="text-xs font-medium">Federal DNC (National Registry)</p>
+                      <p className="text-xs text-muted-foreground">Skip contacts on the national Do Not Call registry</p>
                     </div>
                   </label>
 
@@ -760,7 +776,8 @@ export default function Campaigns() {
               <div className="space-y-2">
                 {[
                   { key: "scrubInternalDnc" as const, label: "Internal DNC list", desc: "Skip contacts marked Do Not Contact" },
-                  { key: "scrubLitigators" as const, label: "National litigators & federal DNC", desc: "Skip TCPA litigators and national DNC" },
+                  { key: "scrubLitigators" as const, label: "TCPA litigators", desc: "Skip known TCPA lawsuit filers" },
+                  { key: "scrubFederalDnc" as const, label: "Federal DNC (National Registry)", desc: "Skip contacts on the national Do Not Call registry" },
                   { key: "scrubExistingContacts" as const, label: "Existing contacts in system", desc: "Skip phones already in another list" },
                 ].map(({ key, label, desc }) => (
                   <label key={key} className="flex items-start gap-3 cursor-pointer">
