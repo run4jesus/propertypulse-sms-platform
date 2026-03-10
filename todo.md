@@ -207,3 +207,25 @@
 - [ ] Disposition badge on each inbox conversation row
 - [ ] Filter inbox by disposition
 - [ ] Color coding per disposition status
+
+## Dashboard Date Range Filtering
+- [ ] Date range picker on dashboard header (Today, Yesterday, Last 7 Days, Last 14 Days, Last 30 Days, Custom)
+- [ ] All KPI stat cards filter by selected date range (Total Sent, Reply Rate, Delivery Rate, Total Contacts, Active Campaigns, Messages Received)
+- [ ] Messages This Week chart updates to show data for selected range
+- [ ] Reply Rate Trend chart updates to selected range
+- [ ] Recent Campaigns and Recent Conversations widgets respect date range
+- [ ] Update dashboard tRPC procedure to accept startDate and endDate params
+- [ ] Persist selected date range in component state
+
+## Dashboard + Reporting Rebuild (SmarterContact-style)
+- [ ] Dashboard: today-only KPIs (SMS sent today, replies today, opt-outs today, reply rate, active campaigns, leads today)
+- [ ] Dashboard: clean stat card grid, no date picker needed (always today)
+- [ ] Reporting: date range picker (start date + end date inputs)
+- [ ] Reporting: Campaign filter dropdown (All or specific campaign)
+- [ ] Reporting: Message template filter dropdown (All or specific template)
+- [ ] Reporting: Standard campaigns count + Keyword campaigns count summary badges
+- [ ] Reporting: 13 stat cards — SMS sent, SMS segments sent, carrier block rate, replies received, delivery rate, opt-out rate, AI filtering rate, reply rate, median response time, leads, contacts, SMS-to-lead conversion rate, contact-to-lead conversion rate
+- [ ] Reporting: Export to CSV button
+- [ ] Reporting: Messaging tab (active) + Calling tab (placeholder)
+- [ ] Backend: getDashboardStats always returns today's data (no date params)
+- [ ] Backend: getReportingStats accepts startDate, endDate, campaignId, templateId

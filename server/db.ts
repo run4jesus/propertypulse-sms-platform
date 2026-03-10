@@ -480,16 +480,43 @@ export async function updateCallRecordingTranscription(id: number, transcription
 }
 
 // ─── Dashboard Stats ──────────────────────────────────────────────────────────
-export async function getDashboardStats(userId: number) {
+export async function getDashboardStats(userId: number, startDate?: Date, endDate?: Date) {
   const db = await getDb();
   if (!db) return null;
 
-  const [totalSent] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(and(eq(messages.userId, userId), eq(messages.direction, "outbound")));
-  const [totalReceived] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(and(eq(messages.userId, userId), eq(messages.direction, "inbound")));
-  const [totalDelivered] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(and(eq(messages.userId, userId), eq(messages.status, "delivered")));
+  // Build date range condition for messages
+  const dateFilter = startDate && endDate
+    ? and(gte(messages.createdAt, startDate), lte(messages.createdAt, endDate))
+    : undefined;
+
+  const msgBase = and(eq(messages.userId, userId), dateFilter);
+
+  const [totalSent] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(and(msgBase, eq(messages.direction, "outbound")));
+  const [totalReceived] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(and(msgBase, eq(messages.direction, "inbound")));
+  const [totalDelivered] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(and(msgBase, eq(messages.status, "delivered")));
   const [totalContacts] = await db.select({ count: sql<number>`count(*)` }).from(contacts).where(eq(contacts.userId, userId));
   const [totalCampaigns] = await db.select({ count: sql<number>`count(*)` }).from(campaigns).where(eq(campaigns.userId, userId));
   const [activeCampaigns] = await db.select({ count: sql<number>`count(*)` }).from(campaigns).where(and(eq(campaigns.userId, userId), eq(campaigns.status, "active")));
+
+  // Daily breakdown for chart — last 7 days or within range
+  const chartStart = startDate ?? new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
+  const chartEnd = endDate ?? new Date();
+  const days: { date: string; sent: number; received: number }[] = [];
+  const cursor = new Date(chartStart);
+  cursor.setHours(0, 0, 0, 0);
+  while (cursor <= chartEnd) {
+    const dayStart = new Date(cursor);
+    const dayEnd = new Date(cursor);
+    dayEnd.setHours(23, 59, 59, 999);
+    const [s] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(and(eq(messages.userId, userId), eq(messages.direction, "outbound"), gte(messages.createdAt, dayStart), lte(messages.createdAt, dayEnd)));
+    const [r] = await db.select({ count: sql<number>`count(*)` }).from(messages).where(and(eq(messages.userId, userId), eq(messages.direction, "inbound"), gte(messages.createdAt, dayStart), lte(messages.createdAt, dayEnd)));
+    days.push({
+      date: cursor.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+      sent: s?.count ?? 0,
+      received: r?.count ?? 0,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
 
   const sent = totalSent?.count ?? 0;
   const received = totalReceived?.count ?? 0;
@@ -504,6 +531,7 @@ export async function getDashboardStats(userId: number) {
     totalContacts: totalContacts?.count ?? 0,
     totalCampaigns: totalCampaigns?.count ?? 0,
     activeCampaigns: activeCampaigns?.count ?? 0,
+    dailyBreakdown: days,
   };
 }
 
@@ -723,4 +751,144 @@ export async function deleteCalendarEvent(id: number, userId: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(calendarEvents).where(and(eq(calendarEvents.id, id), eq(calendarEvents.userId, userId)));
+}
+
+// ─── Reporting Stats ──────────────────────────────────────────────────────────
+export async function getReportingStats(
+  userId: number,
+  opts?: {
+    startDate?: Date;
+    endDate?: Date;
+    campaignId?: number;
+    templateId?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const { startDate, endDate, campaignId } = opts ?? {};
+
+  // Build base date filter for messages
+  const dateFilter =
+    startDate && endDate
+      ? and(gte(messages.createdAt, startDate), lte(messages.createdAt, endDate))
+      : startDate
+      ? gte(messages.createdAt, startDate)
+      : endDate
+      ? lte(messages.createdAt, endDate)
+      : undefined;
+
+  const msgBase = and(eq(messages.userId, userId), dateFilter);
+  const outboundBase = and(msgBase, eq(messages.direction, "outbound"));
+  const inboundBase = and(msgBase, eq(messages.direction, "inbound"));
+
+  // SMS sent (outbound messages)
+  const [smsSent] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(messages)
+    .where(outboundBase);
+
+  // SMS segments sent (estimate: count chars / 160 per message, min 1)
+  const [segmentData] = await db
+    .select({ total: sql<number>`sum(ceil(length(body) / 160))` })
+    .from(messages)
+    .where(outboundBase);
+
+  // Replies received (inbound messages)
+  const [repliesReceived] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(messages)
+    .where(inboundBase);
+
+  // Delivered messages
+  const [delivered] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(messages)
+    .where(and(outboundBase, eq(messages.status, "delivered")));
+
+  // Failed messages (carrier blocked)
+  const [failed] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(messages)
+    .where(and(outboundBase, eq(messages.status, "failed")));
+
+  // Opt-outs in period
+  const convDateFilter =
+    startDate && endDate
+      ? and(gte(conversations.updatedAt, startDate), lte(conversations.updatedAt, endDate))
+      : undefined;
+
+  const [optOuts] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(conversations)
+    .where(and(eq(conversations.userId, userId), eq(conversations.status, "opted_out"), convDateFilter));
+
+  // Total contacts
+  const contactDateFilter =
+    startDate && endDate
+      ? and(gte(contacts.createdAt, startDate), lte(contacts.createdAt, endDate))
+      : undefined;
+
+  const [totalContacts] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(contacts)
+    .where(and(eq(contacts.userId, userId), contactDateFilter));
+
+  // Leads = conversations with disposition "interested" or "callback_requested"
+  const [leads] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.userId, userId),
+        or(
+          eq(conversations.disposition, "interested"),
+          eq(conversations.disposition, "callback_requested")
+        ),
+        convDateFilter
+      )
+    );
+
+  // Standard campaigns count
+  const campaignDateFilter =
+    startDate && endDate
+      ? and(gte(campaigns.createdAt, startDate), lte(campaigns.createdAt, endDate))
+      : undefined;
+
+  const [standardCampaigns] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(campaigns)
+    .where(and(eq(campaigns.userId, userId), campaignDateFilter));
+
+  // Keyword campaigns count
+  const [kwCampaigns] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(keywordCampaigns)
+    .where(eq(keywordCampaigns.userId, userId));
+
+  const sent = smsSent?.count ?? 0;
+  const recv = repliesReceived?.count ?? 0;
+  const dlv = delivered?.count ?? 0;
+  const fail = failed?.count ?? 0;
+  const optOutCount = optOuts?.count ?? 0;
+  const contactCount = totalContacts?.count ?? 0;
+  const leadCount = leads?.count ?? 0;
+
+  return {
+    smsSent: sent,
+    smsSegmentsSent: segmentData?.total ?? sent, // fallback to sent count
+    carrierBlockRate: sent > 0 ? parseFloat(((fail / sent) * 100).toFixed(2)) : 0,
+    repliesReceived: recv,
+    deliveryRate: sent > 0 ? parseFloat(((dlv / sent) * 100).toFixed(2)) : 0,
+    optOutRate: sent > 0 ? parseFloat(((optOutCount / sent) * 100).toFixed(2)) : 0,
+    aiFilteringRate: 0, // placeholder — would need AI filter tracking
+    replyRate: sent > 0 ? parseFloat(((recv / sent) * 100).toFixed(2)) : 0,
+    medianResponseTime: 0, // placeholder — complex to compute
+    leads: leadCount,
+    contacts: contactCount,
+    smsToLeadRate: sent > 0 ? parseFloat(((leadCount / sent) * 100).toFixed(2)) : 0,
+    contactToLeadRate: contactCount > 0 ? parseFloat(((leadCount / contactCount) * 100).toFixed(2)) : 0,
+    standardCampaigns: standardCampaigns?.count ?? 0,
+    keywordCampaigns: kwCampaigns?.count ?? 0,
+  };
 }

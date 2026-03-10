@@ -57,6 +57,7 @@ import {
   getConversations,
   getCustomFields,
   getDashboardStats,
+  getReportingStats,
   getGroupMembers,
   getKeywordCampaigns,
   getLabels,
@@ -727,9 +728,30 @@ ${transcript}`,
 
   // ─── Reporting ───────────────────────────────────────────────────────────────
   reporting: router({
-    dashboard: protectedProcedure.query(async ({ ctx }) => {
-      return getDashboardStats(ctx.user.id);
-    }),
+    dashboard: protectedProcedure
+      .input(z.object({
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        return getDashboardStats(ctx.user.id, input?.startDate, input?.endDate);
+      }),
+
+    stats: protectedProcedure
+      .input(z.object({
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        campaignId: z.number().optional(),
+        templateId: z.number().optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        return getReportingStats(ctx.user.id, {
+          startDate: input?.startDate,
+          endDate: input?.endDate,
+          campaignId: input?.campaignId,
+          templateId: input?.templateId,
+        });
+      }),
 
     campaigns: protectedProcedure.query(async ({ ctx }) => {
       const all = await getCampaigns(ctx.user.id);
