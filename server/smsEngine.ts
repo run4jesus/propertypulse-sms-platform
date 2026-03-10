@@ -514,6 +514,10 @@ export async function processCampaignBatches() {
         // Skip opted-out contacts
         if (contact.optedOut) continue;
 
+        // Skip contacts flagged as litigators or DNC
+        if ((contact as any).litigatorFlag) continue;
+        if ((contact as any).dncStatus && (contact as any).dncStatus !== "clean") continue;
+
         // Check contact management opt-out list
         const [optedOut] = await db
           .select()
@@ -527,6 +531,20 @@ export async function processCampaignBatches() {
           )
           .limit(1);
         if (optedOut) continue;
+
+        // Check internal DNC list
+        const [internalDnc] = await db
+          .select()
+          .from(contactManagement)
+          .where(
+            and(
+              eq(contactManagement.userId, campaign.userId),
+              eq(contactManagement.phone, contact.phone),
+              eq(contactManagement.listType, "dnc")
+            )
+          )
+          .limit(1);
+        if (internalDnc) continue;
 
         // Get the campaign message body (step 1 for standard campaigns)
         // For drip campaigns this would use the step body — simplified here to use campaign name as placeholder

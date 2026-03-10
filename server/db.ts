@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -328,6 +328,50 @@ export async function getMessages(conversationId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.createdAt);
+}
+
+// ─── Unified thread: all messages for a contact phone across all conversations ──
+export async function getMessagesByContactPhone(userId: number, contactPhone: string) {
+  const db = await getDb();
+  if (!db) return [];
+
+  // Normalize phone to digits only for matching
+  const normalizedPhone = contactPhone.replace(/\D/g, "");
+
+  // Find all contacts for this user with this phone number (normalized)
+  const matchingContacts = await db
+    .select({ id: contacts.id, phone: contacts.phone })
+    .from(contacts)
+    .where(eq(contacts.userId, userId));
+
+  const contactIds = matchingContacts
+    .filter((c) => c.phone.replace(/\D/g, "") === normalizedPhone)
+    .map((c) => c.id);
+
+  if (contactIds.length === 0) return [];
+
+  // Find all conversations for these contacts
+  const convRows = await db
+    .select({ id: conversations.id, phoneNumberId: conversations.phoneNumberId })
+    .from(conversations)
+    .where(and(eq(conversations.userId, userId), inArray(conversations.contactId, contactIds)));
+
+  if (convRows.length === 0) return [];
+
+  const convIds = convRows.map((c) => c.id);
+
+  // Get all messages from all those conversations, with their conversation's phoneNumberId
+  const rows = await db
+    .select({
+      message: messages,
+      phoneNumberId: conversations.phoneNumberId,
+    })
+    .from(messages)
+    .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+    .where(inArray(messages.conversationId, convIds))
+    .orderBy(messages.createdAt);
+
+  return rows;
 }
 
 export async function createMessage(data: InsertMessage) {

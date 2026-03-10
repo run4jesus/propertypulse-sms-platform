@@ -89,6 +89,10 @@ export const contacts = mysqlTable("contacts", {
   propertyZip: varchar("propertyZip", { length: 10 }),
   notes: text("notes"),
   optedOut: boolean("optedOut").default(false).notNull(),
+  // DNC / Litigator scrub results
+  dncStatus: mysqlEnum("dncStatus", ["clean", "internal_dnc", "federal_dnc", "state_dnc", "dnc_complainers"]).default("clean").notNull(),
+  litigatorFlag: boolean("litigatorFlag").default(false).notNull(),
+  lastScrubbedAt: timestamp("lastScrubbedAt"),
   // AI-extracted fields
   motivationLevel: mysqlEnum("motivationLevel", ["low", "medium", "high", "unknown"]).default("unknown"),
   timeline: varchar("timeline", { length: 100 }),

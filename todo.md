@@ -229,3 +229,27 @@
 - [ ] Reporting: Messaging tab (active) + Calling tab (placeholder)
 - [ ] Backend: getDashboardStats always returns today's data (no date params)
 - [ ] Backend: getReportingStats accepts startDate, endDate, campaignId, templateId
+
+## DNC Scrubbing
+- [ ] Add TCPA_LITIGATOR_API_KEY and TCPA_LITIGATOR_API_PASSWORD secrets in Settings
+- [ ] Add dncStatus and litigatorFlag columns to contacts schema
+- [ ] Push schema migration for DNC columns
+- [ ] Add scrubContacts tRPC procedure (internal DNC + TCPA Litigator API check)
+- [ ] Auto-scrub contacts on CSV import (show scrub summary: X flagged as DNC, X flagged as litigator)
+- [ ] Block campaign sends to contacts flagged as DNC or litigator
+- [ ] Add DNC Scrub section in Contact Management page with manual re-scrub button
+- [ ] Show DNC/litigator badge on contact rows and conversation header
+
+## Internal DNC Scrub (Campaign Safety)
+- [x] Mark contacts as DNC from conversation view (quick action button)
+- [x] Mark contacts as DNC from contacts list (bulk action)
+- [x] Block campaign batch sends to contacts where contactManagement.listType = 'dnc' for that user
+- [x] Show DNC badge on contact rows in Contacts page
+- [x] Show DNC warning banner in conversation view when contact is on internal DNC
+
+## Unified Conversation Thread (Cross-Number History)
+- [x] Normalize contact phone numbers to E.164 format on import and lookup
+- [x] When opening a conversation, query ALL messages linked to that contact's phone number (across all sender phone numbers)
+- [x] Show a subtle divider/label in thread when sender number changed
+- [x] Conversation list groups by contact phone number (not by sender number) to avoid duplicate threads
+- [x] Merge duplicate conversations for same contact phone into one unified thread

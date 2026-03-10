@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { trpc } from "@/lib/trpc";
 import {
+  AlertTriangle,
   Bot,
   ChevronDown,
   Loader2,
@@ -141,15 +142,19 @@ export default function Messenger() {
     { enabled: !!selectedId, refetchInterval: 5000 }
   );
 
-  const { data: messages, isLoading: msgLoading } = trpc.messages.list.useQuery(
-    { conversationId: selectedId! },
-    { enabled: !!selectedId, refetchInterval: 5000 }
+  // Unified thread: load ALL messages for this contact's phone number across all sender numbers
+  // Derive phone directly from selectedConv to avoid using `contact` before it's declared
+  const contactPhone = selectedConv?.contact?.phone ?? "";
+  const { data: unifiedMessages, isLoading: msgLoading } = trpc.messages.listByContactPhone.useQuery(
+    { contactPhone },
+    { enabled: !!contactPhone, refetchInterval: 5000 }
   );
+  const messages = unifiedMessages;
 
   const sendMessage = trpc.messages.send.useMutation({
     onSuccess: () => {
       setMessageText("");
-      utils.messages.list.invalidate({ conversationId: selectedId! });
+      utils.messages.listByContactPhone.invalidate({ contactPhone });
       utils.conversations.list.invalidate();
     },
   });
@@ -193,6 +198,8 @@ export default function Messenger() {
       handleSend();
     }
   };
+
+  const markDnc = trpc.contactManagement.markDnc.useMutation();
 
   const setDisposition = trpc.conversations.setDisposition.useMutation({
     onSuccess: () => {
@@ -376,7 +383,7 @@ export default function Messenger() {
                     <p className="text-xs text-muted-foreground mt-0.5">{contact?.phone}</p>
                   </div>
                   {/* Labels */}
-                  <div className="flex gap-1 ml-2">
+                  <div className="flex gap-1 ml-2 flex-wrap">
                     {convLabels.map((l) => (
                       <span
                         key={l.label.id}
@@ -386,6 +393,17 @@ export default function Messenger() {
                         {l.label.name}
                       </span>
                     ))}
+                    {/* DNC / Litigator badges */}
+                    {(contact?.dncStatus === "internal_dnc" || contact?.dncStatus === "dnc_complainers") && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-red-100 text-red-700 border border-red-300">
+                        🚫 Internal DNC
+                      </span>
+                    )}
+                    {contact?.litigatorFlag && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-red-200 text-red-800 border border-red-400">
+                        ⚠ Litigator
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -463,6 +481,24 @@ export default function Messenger() {
                       >
                         Mark as Opted Out
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          if (!contact) return;
+                          markDnc.mutate(
+                            { contactId: contact.id, phone: contact.phone },
+                            {
+                              onSuccess: () => {
+                                toast.success("Contact added to internal DNC list");
+                                utils.conversations.get.invalidate({ id: selectedId! });
+                              },
+                              onError: () => toast.error("Failed to mark as DNC"),
+                            }
+                          );
+                        }}
+                        className="text-destructive"
+                      >
+                        🚫 Mark as Internal DNC
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -492,6 +528,23 @@ export default function Messenger() {
               </div>
             </div>
 
+          {/* DNC Warning Banner */}
+          {(contact?.dncStatus === "internal_dnc" || contact?.dncStatus === "dnc_complainers" || contact?.litigatorFlag) && (
+            <div className="mx-4 mt-3 mb-0 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-red-700">
+                <span className="font-semibold">DNC Warning — </span>
+                {(contact?.dncStatus === "internal_dnc" || contact?.dncStatus === "dnc_complainers")
+                  ? "This contact is on your internal Do Not Contact list. "
+                  : ""}
+                {contact?.litigatorFlag
+                  ? "This contact is flagged as a known TCPA litigator. "
+                  : ""}
+                Sending messages may expose you to legal liability.
+              </div>
+            </div>
+          )}
+
           {/* Messages */}
           <ScrollArea className="flex-1 p-4">
             {msgLoading ? (
@@ -500,35 +553,52 @@ export default function Messenger() {
               </div>
             ) : messages && messages.length > 0 ? (
               <div className="space-y-3 max-w-2xl mx-auto">
-                {messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl text-sm ${
-                        msg.direction === "outbound"
-                          ? "bg-primary text-primary-foreground rounded-br-sm"
-                          : "bg-card border border-border text-foreground rounded-bl-sm"
-                      }`}
-                    >
-                      <p className="leading-relaxed">{msg.body}</p>
-                      <div className={`flex items-center gap-1 mt-1 ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}>
-                        <span className={`text-xs opacity-70`}>
-                          {format(new Date(msg.createdAt), "h:mm a")}
-                        </span>
-                        {msg.isAiGenerated && (
-                          <Bot className="h-3 w-3 opacity-70" />
-                        )}
-                        {msg.direction === "outbound" && (
-                          <span className={`text-xs opacity-70`}>
-                            · {msg.status}
+                {messages.map((row, idx) => {
+                  const msg = row.message;
+                  // Show a subtle divider when the sender phone number changes between messages
+                  const prevRow = idx > 0 ? messages[idx - 1] : null;
+                  const senderChanged = prevRow && prevRow.phoneNumberId !== row.phoneNumberId && msg.direction === "outbound";
+                  return (
+                    <>
+                      {senderChanged && (
+                        <div key={`divider-${msg.id}`} className="flex items-center gap-2 my-2">
+                          <div className="flex-1 h-px bg-border" />
+                          <span className="text-xs text-muted-foreground px-2 whitespace-nowrap">
+                            Sent from a different number
                           </span>
-                        )}
+                          <div className="flex-1 h-px bg-border" />
+                        </div>
+                      )}
+                      <div
+                        key={msg.id}
+                        className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}
+                      >
+                        <div
+                          className={`max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl text-sm ${
+                            msg.direction === "outbound"
+                              ? "bg-primary text-primary-foreground rounded-br-sm"
+                              : "bg-card border border-border text-foreground rounded-bl-sm"
+                          }`}
+                        >
+                          <p className="leading-relaxed">{msg.body}</p>
+                          <div className={`flex items-center gap-1 mt-1 ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}>
+                            <span className="text-xs opacity-70">
+                              {format(new Date(msg.createdAt), "h:mm a")}
+                            </span>
+                            {msg.isAiGenerated && (
+                              <Bot className="h-3 w-3 opacity-70" />
+                            )}
+                            {msg.direction === "outbound" && (
+                              <span className="text-xs opacity-70">
+                                · {msg.status}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
+                    </>
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
             ) : (

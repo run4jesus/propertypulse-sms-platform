@@ -96,6 +96,14 @@ export default function Contacts() {
     },
   });
 
+  const markDnc = trpc.contactManagement.markDnc.useMutation({
+    onSuccess: () => {
+      toast.success("Contact added to internal DNC list");
+      utils.contacts.list.invalidate();
+    },
+    onError: () => toast.error("Failed to mark as DNC"),
+  });
+
   const createList = trpc.contactLists.create.useMutation({
     onSuccess: () => {
       toast.success("List created");
@@ -395,11 +403,28 @@ export default function Contacts() {
                         ) : "—"}
                       </td>
                       <td className="px-4 py-2.5">
-                        {contact.optedOut ? (
-                          <Badge variant="secondary" className="text-xs bg-red-50 text-red-600">Opted Out</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs bg-emerald-50 text-emerald-700">Active</Badge>
-                        )}
+                        <div className="flex flex-wrap gap-1">
+                          {contact.optedOut ? (
+                            <Badge variant="secondary" className="text-xs bg-red-50 text-red-600">Opted Out</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs bg-emerald-50 text-emerald-700">Active</Badge>
+                          )}
+                          {(contact as any).litigatorFlag && (
+                            <Badge variant="secondary" className="text-xs bg-red-100 text-red-800 border border-red-300">⚠ Litigator</Badge>
+                          )}
+                          {(contact as any).dncStatus === "federal_dnc" && (
+                            <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">Federal DNC</Badge>
+                          )}
+                          {(contact as any).dncStatus === "state_dnc" && (
+                            <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">State DNC</Badge>
+                          )}
+                          {(contact as any).dncStatus === "dnc_complainers" && (
+                            <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800">DNC Complainer</Badge>
+                          )}
+                          {(contact as any).dncStatus === "internal_dnc" && (
+                            <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 border border-red-300 font-semibold">🚫 Internal DNC</Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex gap-1">
@@ -414,6 +439,20 @@ export default function Contacts() {
                           >
                             <MessageSquare className="h-3.5 w-3.5" />
                           </Button>
+                          {!(contact as any).dncStatus || (contact as any).dncStatus === "clean" ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-500 hover:text-red-700"
+                              title="Mark as Internal DNC"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                markDnc.mutate({ contactId: contact.id, phone: contact.phone });
+                              }}
+                            >
+                              <span className="text-xs">🚫</span>
+                            </Button>
+                          ) : null}
                           <Button
                             variant="ghost"
                             size="icon"

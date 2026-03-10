@@ -64,6 +64,7 @@ import {
   getLatestAiSuggestion,
   getMacros,
   getMessages,
+  getMessagesByContactPhone,
   getOrCreateConversation,
   getPhoneNumbers,
   getUserByOpenId,
@@ -92,8 +93,8 @@ import {
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
-import { eq, sql } from "drizzle-orm";
-import { contacts } from "../drizzle/schema";
+import { and, eq, sql } from "drizzle-orm";
+import { contacts, contactManagement as contactManagementTable } from "../drizzle/schema";
 
 export const appRouter = router({
   system: systemRouter,
@@ -398,6 +399,13 @@ export const appRouter = router({
       .input(z.object({ conversationId: z.number() }))
       .query(async ({ ctx, input }) => {
         return getMessages(input.conversationId);
+      }),
+
+    // Unified thread: all messages for a contact's phone number across all sender numbers
+    listByContactPhone: protectedProcedure
+      .input(z.object({ contactPhone: z.string() }))
+      .query(async ({ ctx, input }) => {
+        return getMessagesByContactPhone(ctx.user.id, input.contactPhone);
       }),
 
     send: protectedProcedure
@@ -842,6 +850,22 @@ ${transcript}`,
         await removeFromContactManagement(input.id, ctx.user.id);
         return { success: true };
       }),
+
+    // Convenience: mark a contact as internal DNC from any screen
+    markDnc: protectedProcedure
+      .input(z.object({ contactId: z.number(), phone: z.string(), reason: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        // Add to contactManagement DNC list
+        await addToContactManagement(ctx.user.id, input.contactId, input.phone, "dnc", input.reason ?? "Marked DNC from messenger");
+        // Also update the contact's dncStatus column
+        await db
+          .update(contacts)
+          .set({ dncStatus: "internal_dnc" })
+          .where(and(eq(contacts.id, input.contactId), eq(contacts.userId, ctx.user.id)));
+        return { success: true };
+      }),
   }),
 
   // ─── Macros ──────────────────────────────────────────────────────────────────
@@ -1041,6 +1065,185 @@ ${transcript}`,
         await deleteCalendarEvent(input.id, ctx.user.id);
         return { success: true };
       }),
+  }),
+
+  // ─── DNC Scrubbing ─────────────────────────────────────────────────────────
+  dnc: router({
+    // Scrub a single phone number against internal DNC + TCPA Litigator API
+    scrubPhone: protectedProcedure
+      .input(z.object({ phone: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+
+        const normalized = input.phone.replace(/[^\d]/g, "");
+
+        // 1. Check internal DNC list
+        const internalDnc = await db
+          .select()
+          .from(contactManagementTable)
+          .where(eq(contactManagementTable.phone, input.phone))
+          .limit(1);
+
+        if (internalDnc.length > 0 && internalDnc[0].listType === "dnc") {
+          return { phone: input.phone, clean: false, reason: "internal_dnc", status: "Internal DNC" };
+        }
+
+        // 2. Check TCPA Litigator API if credentials are set
+        const apiKey = process.env.TCPA_LITIGATOR_API_KEY;
+        const apiPassword = process.env.TCPA_LITIGATOR_API_PASSWORD;
+
+        if (apiKey && apiPassword) {
+          try {
+            const url = `https://api.tcpalitigatorlist.com/scrub/phone/all/${normalized}`;
+            const credentials = Buffer.from(`${apiKey}:${apiPassword}`).toString("base64");
+            const response = await fetch(url, {
+              headers: { Authorization: `Basic ${credentials}` },
+            });
+            if (response.ok) {
+              const data = await response.json() as any;
+              const result = data?.results;
+              if (result && result.clean === 0) {
+                const statusArr: string[] = result.status_array || [];
+                const isLitigator = statusArr.some((s: string) =>
+                  s.toLowerCase().includes("tcpa") || s.toLowerCase().includes("troll")
+                );
+                const isFederalDnc = statusArr.some((s: string) =>
+                  s.toLowerCase().includes("federal") || s.toLowerCase().includes("national")
+                );
+                const isStateDnc = statusArr.some((s: string) =>
+                  s.toLowerCase().includes("state")
+                );
+                const isDncComplainer = statusArr.some((s: string) =>
+                  s.toLowerCase().includes("complainer")
+                );
+
+                return {
+                  phone: input.phone,
+                  clean: false,
+                  reason: isLitigator ? "litigator" : isFederalDnc ? "federal_dnc" : isStateDnc ? "state_dnc" : "dnc_complainers",
+                  status: result.status || statusArr.join(", "),
+                  litigatorFlag: isLitigator,
+                };
+              }
+            }
+          } catch (e) {
+            console.error("[DNC Scrub] API error:", e);
+          }
+        }
+
+        return { phone: input.phone, clean: true, reason: "clean", status: "Clean", litigatorFlag: false };
+      }),
+
+    // Bulk scrub a list of contact IDs — updates dncStatus and litigatorFlag on each contact
+    scrubContacts: protectedProcedure
+      .input(z.object({
+        contactIds: z.array(z.number()),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+
+        const apiKey = process.env.TCPA_LITIGATOR_API_KEY;
+        const apiPassword = process.env.TCPA_LITIGATOR_API_PASSWORD;
+        const credentials = apiKey && apiPassword
+          ? Buffer.from(`${apiKey}:${apiPassword}`).toString("base64")
+          : null;
+
+        let clean = 0, internalDncCount = 0, litigatorCount = 0, federalDncCount = 0, errors = 0;
+
+        // Fetch contacts
+        const contactRows = await db
+          .select({ id: contacts.id, phone: contacts.phone })
+          .from(contacts)
+          .where(eq(contacts.userId, ctx.user.id));
+
+        const targetContacts = contactRows.filter((c) => input.contactIds.includes(c.id));
+
+        for (const contact of targetContacts) {
+          const normalized = contact.phone.replace(/[^\d]/g, "");
+
+          // Check internal DNC
+          const internalDnc = await db
+            .select()
+            .from(contactManagementTable)
+            .where(eq(contactManagementTable.phone, contact.phone))
+            .limit(1);
+
+          if (internalDnc.length > 0 && internalDnc[0].listType === "dnc") {
+            await db.update(contacts)
+              .set({ dncStatus: "internal_dnc", litigatorFlag: false, lastScrubbedAt: new Date() })
+              .where(eq(contacts.id, contact.id));
+            internalDncCount++;
+            continue;
+          }
+
+          // Check TCPA Litigator API
+          if (credentials) {
+            try {
+              const url = `https://api.tcpalitigatorlist.com/scrub/phone/all/${normalized}`;
+              const response = await fetch(url, {
+                headers: { Authorization: `Basic ${credentials}` },
+              });
+              if (response.ok) {
+                const data = await response.json() as any;
+                const result = data?.results;
+                if (result && result.clean === 0) {
+                  const statusArr: string[] = result.status_array || [];
+                  const isLitigator = statusArr.some((s: string) =>
+                    s.toLowerCase().includes("tcpa") || s.toLowerCase().includes("troll")
+                  );
+                  const isFederalDnc = statusArr.some((s: string) =>
+                    s.toLowerCase().includes("federal") || s.toLowerCase().includes("national")
+                  );
+                  const isStateDnc = statusArr.some((s: string) =>
+                    s.toLowerCase().includes("state")
+                  );
+                  const dncStatusVal = isLitigator ? "internal_dnc" : isFederalDnc ? "federal_dnc" : isStateDnc ? "state_dnc" : "dnc_complainers";
+                  await db.update(contacts)
+                    .set({ dncStatus: dncStatusVal as any, litigatorFlag: isLitigator, lastScrubbedAt: new Date() })
+                    .where(eq(contacts.id, contact.id));
+                  if (isLitigator) litigatorCount++;
+                  else federalDncCount++;
+                  continue;
+                }
+              }
+            } catch (e) {
+              errors++;
+            }
+          }
+
+          // Mark as clean
+          await db.update(contacts)
+            .set({ dncStatus: "clean", litigatorFlag: false, lastScrubbedAt: new Date() })
+            .where(eq(contacts.id, contact.id));
+          clean++;
+        }
+
+        return { total: targetContacts.length, clean, internalDnc: internalDncCount, litigator: litigatorCount, federalDnc: federalDncCount, errors };
+      }),
+
+    // Get DNC summary for current user's contacts
+    summary: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { total: 0, clean: 0, internalDnc: 0, federalDnc: 0, stateDnc: 0, dncComplainers: 0, litigators: 0, neverScrubbed: 0 };
+
+      const rows = await db
+        .select({ dncStatus: contacts.dncStatus, litigatorFlag: contacts.litigatorFlag, lastScrubbedAt: contacts.lastScrubbedAt })
+        .from(contacts)
+        .where(eq(contacts.userId, ctx.user.id));
+
+      return {
+        total: rows.length,
+        clean: rows.filter((r) => r.dncStatus === "clean").length,
+        internalDnc: rows.filter((r) => r.dncStatus === "internal_dnc").length,
+        federalDnc: rows.filter((r) => r.dncStatus === "federal_dnc").length,
+        stateDnc: rows.filter((r) => r.dncStatus === "state_dnc").length,
+        dncComplainers: rows.filter((r) => r.dncStatus === "dnc_complainers").length,
+        litigators: rows.filter((r) => r.litigatorFlag === true).length,
+        neverScrubbed: rows.filter((r) => !r.lastScrubbedAt).length,
+      };
+    }),
   }),
 
   // ─── Twilio Webhook (public) ──────────────────────────────────────────────────
