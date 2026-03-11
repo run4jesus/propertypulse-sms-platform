@@ -315,3 +315,7 @@
 - [x] Frontend: unread contact name is bold
 - [x] Frontend: blue badge shows unread count number
 - [x] Frontend: conversation list invalidates 1.5s after opening to clear unread state
+
+## Unread Filter Pill in Messenger
+- [x] Backend: support status="unread" filter in getConversations (where unreadCount > 0)
+- [x] Frontend: add "Unread" pill to STATUS_FILTERS array in Messenger

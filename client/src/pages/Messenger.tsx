@@ -45,6 +45,7 @@ const LABEL_COLORS: Record<string, string> = {
 
 const STATUS_FILTERS = [
   { label: "All", value: undefined },
+  { label: "Unread", value: "unread" },
   { label: "Unreplied", value: "unreplied" },
   { label: "Awaiting Reply", value: "awaiting_reply" },
   { label: "Opted Out", value: "opted_out" },

@@ -276,7 +276,11 @@ export async function getConversations(userId: number, opts?: { status?: string;
 
   // Build where conditions
   const conditions = [eq(conversations.userId, userId)];
-  if (opts?.status) conditions.push(sql`${conversations.status} = ${opts.status}`);
+  if (opts?.status === 'unread') {
+    conditions.push(sql`${conversations.unreadCount} > 0`);
+  } else if (opts?.status) {
+    conditions.push(sql`${conversations.status} = ${opts.status}`);
+  }
   if (opts?.search) conditions.push(sql`${contacts.firstName} like ${`%${opts.search}%`}`);
 
   if (opts?.labelId) {
