@@ -271,9 +271,24 @@ export async function addContactToList(contactId: number, listId: number) {
 export async function getConversations(userId: number, opts?: { status?: string; labelId?: number; search?: string; limit?: number; offset?: number }) {
   const db = await getDb();
   if (!db) return [];
-
   const limit = opts?.limit ?? 50;
   const offset = opts?.offset ?? 0;
+
+  // Build where conditions
+  const conditions = [eq(conversations.userId, userId)];
+  if (opts?.status) conditions.push(sql`${conversations.status} = ${opts.status}`);
+  if (opts?.search) conditions.push(sql`${contacts.firstName} like ${`%${opts.search}%`}`);
+
+  if (opts?.labelId) {
+    // Filter by label: only conversations that have this label assigned
+    const labeledConvIds = await db
+      .select({ conversationId: conversationLabels.conversationId })
+      .from(conversationLabels)
+      .where(eq(conversationLabels.labelId, opts.labelId));
+    const ids = labeledConvIds.map((r) => r.conversationId).filter((id): id is number => id !== null);
+    if (ids.length === 0) return [];
+    conditions.push(inArray(conversations.id, ids));
+  }
 
   const rows = await db
     .select({
@@ -282,11 +297,10 @@ export async function getConversations(userId: number, opts?: { status?: string;
     })
     .from(conversations)
     .innerJoin(contacts, eq(conversations.contactId, contacts.id))
-    .where(eq(conversations.userId, userId))
+    .where(and(...conditions))
     .orderBy(desc(conversations.lastMessageAt))
     .limit(limit)
     .offset(offset);
-
   return rows;
 }
 

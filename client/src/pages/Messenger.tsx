@@ -124,6 +124,7 @@ export default function Messenger() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [labelFilter, setLabelFilter] = useState<number | undefined>(undefined);
   const [messageText, setMessageText] = useState("");
   const [, setNavState] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -131,6 +132,7 @@ export default function Messenger() {
 
   const { data: conversations, isLoading: convLoading } = trpc.conversations.list.useQuery({
     status: statusFilter,
+    labelId: labelFilter,
     search: search || undefined,
     limit: 100,
   });
@@ -263,9 +265,9 @@ export default function Messenger() {
             {STATUS_FILTERS.map((f) => (
               <button
                 key={f.label}
-                onClick={() => setStatusFilter(f.value)}
+                onClick={() => { setStatusFilter(f.value); setLabelFilter(undefined); }}
                 className={`text-xs px-2 py-1 rounded-full border transition-colors ${
-                  statusFilter === f.value
+                  statusFilter === f.value && !labelFilter
                     ? "bg-primary text-primary-foreground border-primary"
                     : "border-border text-muted-foreground hover:border-primary/50"
                 }`}
@@ -274,6 +276,32 @@ export default function Messenger() {
               </button>
             ))}
           </div>
+          {/* Label filters */}
+          {labels && labels.length > 0 && (
+            <div className="flex gap-1 flex-wrap pt-1 border-t border-border/50">
+              {labels.map((lbl) => (
+                <button
+                  key={lbl.id}
+                  onClick={() => {
+                    setLabelFilter(labelFilter === lbl.id ? undefined : lbl.id);
+                    setStatusFilter(undefined);
+                  }}
+                  className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                    labelFilter === lbl.id
+                      ? "text-white border-transparent"
+                      : "border-border text-muted-foreground hover:border-primary/50"
+                  }`}
+                  style={labelFilter === lbl.id ? { backgroundColor: lbl.color, borderColor: lbl.color } : {}}
+                >
+                  <span
+                    className="inline-block w-2 h-2 rounded-full mr-1"
+                    style={{ backgroundColor: lbl.color }}
+                  />
+                  {lbl.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Conversation List */}

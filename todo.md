@@ -301,3 +301,8 @@
 - [x] Add updateLabel backend procedure (rename + color change)
 - [x] Add rename/edit button to each label row in Settings Labels tab
 - [x] Verify label assignment works in Messenger conversation view
+
+## Messenger Label Filters
+- [x] Backend: update conversations.list procedure to accept optional labelId filter
+- [x] Frontend: load user labels in Messenger sidebar and render a filter tab for each label
+- [x] Frontend: clicking a label filter tab filters the conversation list to only conversations with that label
