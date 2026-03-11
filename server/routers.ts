@@ -584,6 +584,10 @@ export const appRouter = router({
         scrubLitigators: z.boolean().default(true),
         scrubFederalDnc: z.boolean().default(false),
         scrubExistingContacts: z.boolean().default(false),
+        phoneNumberIds: z.array(z.number()).max(3).default([]),
+        followUpEnabled: z.boolean().default(false),
+        followUpDelayHours: z.number().min(1).max(720).default(24),
+        followUpMessage: z.string().optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -621,6 +625,10 @@ export const appRouter = router({
         scrubLitigators: z.boolean().optional(),
         scrubFederalDnc: z.boolean().optional(),
         scrubExistingContacts: z.boolean().optional(),
+        phoneNumberIds: z.array(z.number()).max(3).optional(),
+        followUpEnabled: z.boolean().optional(),
+        followUpDelayHours: z.number().min(1).max(720).optional(),
+        followUpMessage: z.string().optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {

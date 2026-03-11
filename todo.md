@@ -281,3 +281,17 @@
 - [x] Frontend: Phone Numbers page with search by area code, available results list, purchase button
 - [x] Frontend: Owned numbers list with release button and number details
 - [x] Add Phone Numbers to sidebar navigation
+
+## Phone Number Rotation in Campaigns
+- [x] Add phoneNumberIds JSON column to campaigns schema (array of up to 3 phone number IDs)
+- [x] Update campaigns.create and campaigns.update router to accept phoneNumberIds
+- [x] Update batch engine to rotate sends across selected phone numbers (round-robin)
+- [x] Add multi-number selector UI to campaign creation (up to 3 numbers, shows area code + number)
+- [x] Show selected numbers in campaign detail view
+
+## Not-Interested Follow-Up Automation
+- [x] Add followUpEnabled, followUpDelayHours, followUpMessage columns to campaigns schema
+- [x] Update campaigns router to accept follow-up settings
+- [x] Add follow-up queue logic: when AI labels lead as Not Interested, schedule a follow-up message after delay
+- [x] Add follow-up scheduler to batch engine tick (check for queued follow-ups and send)
+- [x] Add follow-up settings UI to campaign creation (toggle, delay picker, message textarea)

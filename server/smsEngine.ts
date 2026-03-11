@@ -336,6 +336,67 @@ export async function handleInboundSms(
               labelId: targetLabel.id,
             });
             console.log(`[SMS] Auto-labeled conversation ${conversation.id} as "${targetLabelName}"`);
+
+            // Queue follow-up message if this is a "Not Interested" label and the campaign has followUpEnabled
+            if (isNotInterested) {
+              try {
+                const { followUpQueue } = await import("../drizzle/schema");
+                // Look up the campaign via the first outbound message in this conversation
+                const [firstOutbound] = await db
+                  .select({ campaignId: messages.campaignId })
+                  .from(messages)
+                  .where(
+                    and(
+                      eq(messages.conversationId, conversation.id),
+                      eq(messages.direction, "outbound")
+                    )
+                  )
+                  .orderBy(messages.id)
+                  .limit(1);
+
+                const campaignIdForFollowUp = firstOutbound?.campaignId;
+                if (campaignIdForFollowUp) {
+                  const [camp] = await db
+                    .select()
+                    .from(campaigns)
+                    .where(eq(campaigns.id, campaignIdForFollowUp))
+                    .limit(1);
+
+                  if (camp && (camp as any).followUpEnabled && (camp as any).followUpMessage) {
+                    const delayHours = (camp as any).followUpDelayHours ?? 24;
+                    const scheduledAt = new Date(Date.now() + delayHours * 60 * 60 * 1000);
+
+                    // Only queue if not already queued for this conversation
+                    const [existingFollowUp] = await db
+                      .select()
+                      .from(followUpQueue)
+                      .where(
+                        and(
+                          eq(followUpQueue.conversationId, conversation.id),
+                          eq(followUpQueue.status, "pending")
+                        )
+                      )
+                      .limit(1);
+
+                    if (!existingFollowUp) {
+                      await db.insert(followUpQueue).values({
+                        userId,
+                        campaignId: campaignIdForFollowUp,
+                        conversationId: conversation.id,
+                        contactId: contact.id,
+                        phoneNumberId: conversation.phoneNumberId ?? null,
+                        message: (camp as any).followUpMessage,
+                        scheduledAt,
+                        status: "pending",
+                      });
+                      console.log(`[SMS] Queued follow-up for conversation ${conversation.id} at ${scheduledAt.toISOString()}`);
+                    }
+                  }
+                }
+              } catch (fuErr) {
+                console.error("[SMS] Follow-up queue error:", fuErr);
+              }
+            }
           }
         }
       } catch (err) {
@@ -468,17 +529,23 @@ export async function processCampaignBatches() {
 
       if (!user?.twilioAccountSid || !user?.twilioAuthToken) continue;
 
-      // Get the from phone number
-      const fromPhoneId = campaign.phoneNumberId;
-      if (!fromPhoneId) continue;
+      // Get the from phone number(s) — support rotation across up to 3 numbers
+      const rotationIds: number[] = Array.isArray((campaign as any).phoneNumberIds) && (campaign as any).phoneNumberIds.length > 0
+        ? (campaign as any).phoneNumberIds
+        : campaign.phoneNumberId ? [campaign.phoneNumberId] : [];
 
-      const [fromPhone] = await db
+      if (rotationIds.length === 0) continue;
+
+      // Load all rotation phone numbers
+      const rotationPhones = await db
         .select()
         .from(phoneNumbers)
-        .where(eq(phoneNumbers.id, fromPhoneId))
-        .limit(1);
+        .where(sql`${phoneNumbers.id} IN (${sql.join(rotationIds.map(id => sql`${id}`), sql`, `)})`);
 
-      if (!fromPhone) continue;
+      if (rotationPhones.length === 0) continue;
+
+      // We'll rotate per-contact below; keep fromPhoneId for conversation tracking
+      const fromPhoneId = rotationIds[0];
 
       // Get contacts in the campaign's list, starting from nextBatchOffset
       if (!campaign.contactListId) continue;
@@ -598,6 +665,10 @@ export async function processCampaignBatches() {
           messageBody += "\n\nReply STOP to opt out.";
         }
 
+        // Pick the phone number to send from — rotate across rotationPhones by contact index
+        const rotationIndex = sentCount % rotationPhones.length;
+        const fromPhone = rotationPhones[rotationIndex];
+
         // Send the SMS
         const result = await sendSms({
           accountSid: user.twilioAccountSid,
@@ -682,6 +753,85 @@ export async function processCampaignBatches() {
     } catch (err) {
       console.error(`[BatchEngine] Error processing campaign ${campaign.id}:`, err);
     }
+  }
+
+  // ─── Process follow-up queue ───────────────────────────────────────────────────────────────
+  try {
+    const db2 = await getDb();
+    if (!db2) return;
+    const { followUpQueue } = await import("../drizzle/schema");
+
+    // Find all pending follow-ups that are due
+    const dueFollowUps = await db2
+      .select()
+      .from(followUpQueue)
+      .where(
+        and(
+          eq(followUpQueue.status, "pending"),
+          sql`${followUpQueue.scheduledAt} <= NOW()`
+        )
+      )
+      .limit(50);
+
+    for (const item of dueFollowUps) {
+      try {
+        // Get user credentials
+        const [itemUser] = await db2.select().from(users).where(eq(users.id, item.userId)).limit(1);
+        if (!itemUser?.twilioAccountSid || !itemUser?.twilioAuthToken) {
+          await db2.update(followUpQueue).set({ status: "failed" }).where(eq(followUpQueue.id, item.id));
+          continue;
+        }
+
+        // Get the from phone number
+        let fromPhoneNum: string | null = null;
+        if (item.phoneNumberId) {
+          const [ph] = await db2.select().from(phoneNumbers).where(eq(phoneNumbers.id, item.phoneNumberId)).limit(1);
+          fromPhoneNum = ph?.phoneNumber ?? null;
+        }
+        if (!fromPhoneNum) {
+          await db2.update(followUpQueue).set({ status: "failed" }).where(eq(followUpQueue.id, item.id));
+          continue;
+        }
+
+        // Get contact phone
+        const [itemContact] = await db2.select().from(contacts).where(eq(contacts.id, item.contactId)).limit(1);
+        if (!itemContact || itemContact.optedOut) {
+          await db2.update(followUpQueue).set({ status: "cancelled" }).where(eq(followUpQueue.id, item.id));
+          continue;
+        }
+
+        const result = await sendSms({
+          accountSid: itemUser.twilioAccountSid,
+          authToken: itemUser.twilioAuthToken,
+          from: fromPhoneNum,
+          to: itemContact.phone,
+          body: item.message,
+        });
+
+        if (result) {
+          // Log the message
+          await db2.insert(messages).values({
+            conversationId: item.conversationId,
+            userId: item.userId,
+            direction: "outbound",
+            body: item.message,
+            twilioSid: result.sid,
+            status: "sent",
+            isAiGenerated: false,
+            campaignId: item.campaignId,
+          });
+          await db2.update(followUpQueue).set({ status: "sent", sentAt: new Date() }).where(eq(followUpQueue.id, item.id));
+          console.log(`[BatchEngine] Follow-up sent for conversation ${item.conversationId}`);
+        } else {
+          await db2.update(followUpQueue).set({ status: "failed" }).where(eq(followUpQueue.id, item.id));
+        }
+      } catch (fuErr) {
+        console.error(`[BatchEngine] Follow-up send error for item ${item.id}:`, fuErr);
+        await db2.update(followUpQueue).set({ status: "failed" }).where(eq(followUpQueue.id, item.id));
+      }
+    }
+  } catch (fuQueueErr) {
+    console.error("[BatchEngine] Follow-up queue processor error:", fuQueueErr);
   }
 }
 

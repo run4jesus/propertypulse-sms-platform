@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE campaigns RENAME COLUMN phoneNumberIds TO phonenumberids;\nALTER TABLE campaigns RENAME COLUMN followUpEnabled TO followupenabled;\nALTER TABLE campaigns RENAME COLUMN followUpDelayHours TO followupdelayhours;\nALTER TABLE campaigns RENAME COLUMN followUpMessage TO followupmessage;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2qHFUVLEiSi1rhu.93857a1cce27 --database ZmWErA2ykcLEoPSCsQ2gyW --execute ALTER TABLE campaigns RENAME COLUMN phoneNumberIds TO phonenumberids;\nALTER TABLE campaigns RENAME COLUMN followUpEnabled TO followupenabled;\nALTER TABLE campaigns RENAME COLUMN followUpDelayHours TO followupdelayhours;\nALTER TABLE campaigns RENAME COLUMN followUpMessage TO followupmessage;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 67
+}

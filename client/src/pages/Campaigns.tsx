@@ -127,7 +127,8 @@ export default function Campaigns() {
   const [type, setType] = useState<"standard" | "drip">("standard");
   const [message, setMessage] = useState("");
   const [listId, setListId] = useState<string>("");
-  const [phoneId, setPhoneId] = useState<string>("");
+  const [phoneIds, setPhoneIds] = useState<number[]>([]);
+  const [phoneId, setPhoneId] = useState<string>(""); // kept for legacy
   const [scheduledAt, setScheduledAt] = useState("");
   const [batchSize, setBatchSize] = useState(10);
   const [batchIntervalMinutes, setBatchIntervalMinutes] = useState(5);
@@ -138,6 +139,9 @@ export default function Campaigns() {
   const [scrubLitigators, setScrubLitigators] = useState(true);
   const [scrubFederalDnc, setScrubFederalDnc] = useState(false);
   const [scrubExistingContacts, setScrubExistingContacts] = useState(false);
+  const [followUpEnabled, setFollowUpEnabled] = useState(false);
+  const [followUpDelayHours, setFollowUpDelayHours] = useState(24);
+  const [followUpMessage, setFollowUpMessage] = useState("Thanks for your time! If anything changes on your end, feel free to reach out.");
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [steps, setSteps] = useState<Step[]>([
     { stepNumber: 1, body: "", delayDays: 0, delayHours: 0 },
@@ -204,6 +208,7 @@ export default function Campaigns() {
     setType("standard");
     setMessage("");
     setListId("");
+    setPhoneIds([]);
     setPhoneId("");
     setScheduledAt("");
     setBatchSize(10);
@@ -215,6 +220,9 @@ export default function Campaigns() {
     setScrubLitigators(true);
     setScrubFederalDnc(false);
     setScrubExistingContacts(false);
+    setFollowUpEnabled(false);
+    setFollowUpDelayHours(24);
+    setFollowUpMessage("Thanks for your time! If anything changes on your end, feel free to reach out.");
     setSteps([{ stepNumber: 1, body: "", delayDays: 0, delayHours: 0 }]);
   };
 
@@ -231,7 +239,11 @@ export default function Campaigns() {
       name,
       type,
       contactListId: listId ? parseInt(listId) : undefined,
-      phoneNumberId: phoneId ? parseInt(phoneId) : undefined,
+      phoneNumberId: phoneIds[0] ?? (phoneId ? parseInt(phoneId) : undefined),
+      phoneNumberIds: phoneIds.length > 0 ? phoneIds : undefined,
+      followUpEnabled,
+      followUpDelayHours,
+      followUpMessage: followUpEnabled ? followUpMessage : undefined,
       scheduledAt: scheduledAt || undefined,
       batchSize,
       batchIntervalMinutes,
@@ -321,19 +333,35 @@ export default function Campaigns() {
                 </div>
 
                 <div>
-                  <Label className="text-xs">From Number</Label>
-                  <Select value={phoneId} onValueChange={setPhoneId}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Select phone number..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {phoneNumbers?.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.phoneNumber} {p.friendlyName ? `(${p.friendlyName})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-xs">From Number(s) <span className="text-muted-foreground font-normal">(select up to 3 — rotates for better deliverability)</span></Label>
+                  <div className="mt-1 rounded-lg border border-border bg-muted/20 p-2 space-y-1 max-h-36 overflow-y-auto">
+                    {phoneNumbers && phoneNumbers.length > 0 ? phoneNumbers.map((p) => {
+                      const checked = phoneIds.includes(p.id);
+                      return (
+                        <label key={p.id} className="flex items-center gap-2 cursor-pointer px-1 py-0.5 rounded hover:bg-accent">
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5 accent-primary"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                if (phoneIds.length < 3) setPhoneIds([...phoneIds, p.id]);
+                                else toast.error("Maximum 3 numbers per campaign");
+                              } else {
+                                setPhoneIds(phoneIds.filter((id) => id !== p.id));
+                              }
+                            }}
+                          />
+                          <span className="text-xs">{p.phoneNumber}{p.friendlyName ? ` (${p.friendlyName})` : ""}</span>
+                        </label>
+                      );
+                    }) : (
+                      <p className="text-xs text-muted-foreground text-center py-2">No numbers yet — add them in Phone Numbers</p>
+                    )}
+                  </div>
+                  {phoneIds.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">{phoneIds.length} number{phoneIds.length > 1 ? "s" : ""} selected — sends will rotate evenly</p>
+                  )}
                 </div>
 
                 <div>
@@ -633,6 +661,42 @@ export default function Campaigns() {
                     ))}
                   </div>
                 )}
+
+                {/* Not-Interested Follow-Up Automation */}
+                <div className="rounded-lg border border-border p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-semibold">Not-Interested Follow-Up</p>
+                      <p className="text-xs text-muted-foreground">Auto-send a goodbye message when AI labels a lead as Not Interested</p>
+                    </div>
+                    <Switch checked={followUpEnabled} onCheckedChange={setFollowUpEnabled} />
+                  </div>
+                  {followUpEnabled && (
+                    <div className="space-y-2 pt-1">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Send after (hours)</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={720}
+                          value={followUpDelayHours}
+                          onChange={(e) => setFollowUpDelayHours(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="mt-1 h-8 text-sm"
+                        />
+                        <p className="text-xs text-muted-foreground mt-0.5">e.g. 24 = send 1 day after they say no</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Follow-up message</Label>
+                        <Textarea
+                          value={followUpMessage}
+                          onChange={(e) => setFollowUpMessage(e.target.value)}
+                          className="mt-1 min-h-[60px] text-sm"
+                          placeholder="Thanks for your time! If anything changes, feel free to reach out."
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <Button
                   className="w-full"

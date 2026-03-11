@@ -199,6 +199,12 @@ export const campaigns = mysqlTable("campaigns", {
   status: mysqlEnum("status", ["draft", "scheduled", "active", "paused", "completed", "cancelled"]).default("draft").notNull(),
   contactListId: int("contactListId"),
   phoneNumberId: int("phoneNumberId"),
+  // Phone number rotation — up to 3 numbers, stored as JSON array of phoneNumber IDs
+  phoneNumberIds: json("phonenumberids").$type<number[]>(),
+  // Not-interested follow-up automation
+  followUpEnabled: boolean("followupenabled").default(false).notNull(),
+  followUpDelayHours: int("followupdelayhours").default(24).notNull(),
+  followUpMessage: text("followupmessage"),
   scheduledAt: timestamp("scheduledAt"),
   completedAt: timestamp("completedAt"),
   // AI toggle for this campaign
@@ -405,3 +411,21 @@ export const calendarEvents = mysqlTable("calendar_events", {
 });
 
 export type CalendarEvent = typeof calendarEvents.$inferSelect;
+
+// ─── Follow-Up Queue ──────────────────────────────────────────────────────────
+// Tracks scheduled "not interested" follow-up messages
+export const followUpQueue = mysqlTable("follow_up_queue", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  campaignId: int("campaignId").notNull(),
+  conversationId: int("conversationId").notNull(),
+  contactId: int("contactId").notNull(),
+  phoneNumberId: int("phoneNumberId"),
+  message: text("message").notNull(),
+  scheduledAt: timestamp("scheduledAt").notNull(),
+  sentAt: timestamp("sentAt"),
+  status: mysqlEnum("status", ["pending", "sent", "cancelled", "failed"]).default("pending").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type FollowUpQueue = typeof followUpQueue.$inferSelect;
