@@ -17,6 +17,7 @@ import Workflows from "./pages/Workflows";
 import KeywordCampaigns from "./pages/KeywordCampaigns";
 import ContactGroups from "./pages/ContactGroups";
 import ContactManagement from "./pages/ContactManagement";
+import PhoneNumbers from "./pages/PhoneNumbers";
 import Macros from "./pages/Macros";
 import Calendar from "./pages/Calendar";
 
@@ -38,6 +39,7 @@ function Router() {
         <Route path="/calls" component={CallLogs} />
         <Route path="/reporting" component={Reporting} />
         <Route path="/templates" component={Templates} />
+        <Route path="/phone-numbers" component={PhoneNumbers} />
         <Route path="/settings" component={Settings} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />

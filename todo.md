@@ -272,3 +272,12 @@
 - [x] Frontend: show scrub preview summary in campaign creation wizard when a contact list is selected
 - [x] Backend: contactManagement.bulkImportDnc procedure — accepts array of phone numbers, adds each to internal DNC list
 - [x] Frontend: bulk DNC CSV upload UI in Contact Management page (upload CSV, parse phones, preview count, confirm import)
+
+## Phone Number Management (In-App)
+- [x] Backend: phoneNumbers.search procedure — search available numbers by area code via TextGrid API
+- [x] Backend: phoneNumbers.purchase procedure — buy a number via TextGrid API
+- [x] Backend: phoneNumbers.list procedure — list owned numbers from TextGrid API
+- [x] Backend: phoneNumbers.release procedure — release/delete a number via TextGrid API
+- [x] Frontend: Phone Numbers page with search by area code, available results list, purchase button
+- [x] Frontend: Owned numbers list with release button and number details
+- [x] Add Phone Numbers to sidebar navigation

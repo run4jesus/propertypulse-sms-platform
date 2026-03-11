@@ -94,7 +94,7 @@ import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
 import { and, eq, sql } from "drizzle-orm";
-import { contacts, contactManagement as contactManagementTable, contactListMembers, contactLists } from "../drizzle/schema";
+import { contacts, contactManagement as contactManagementTable, contactListMembers, contactLists, phoneNumbers as phoneNumbersTable } from "../drizzle/schema";
 
 export const appRouter = router({
   system: systemRouter,
@@ -143,6 +143,136 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await deletePhoneNumber(input.id, ctx.user.id);
         return { success: true };
+      }),
+
+    // Search available numbers via TextGrid API
+    searchAvailable: protectedProcedure
+      .input(z.object({
+        areaCode: z.string().optional(),
+        contains: z.string().optional(),
+        country: z.string().default("US"),
+        limit: z.number().default(20),
+      }))
+      .query(async ({ ctx, input }) => {
+        const user = await getUserByOpenId(ctx.user.openId);
+        if (!user?.twilioAccountSid || !user?.twilioAuthToken) {
+          throw new Error("TextGrid credentials not configured. Please add your Account SID and Auth Token in Settings.");
+        }
+        const params = new URLSearchParams();
+        if (input.areaCode) params.set("AreaCode", input.areaCode);
+        if (input.contains) params.set("Contains", input.contains);
+        params.set("SmsEnabled", "true");
+        params.set("PageSize", String(input.limit));
+        const url = `https://api.textgrid.com/2010-04-01/Accounts/${user.twilioAccountSid}/AvailablePhoneNumbers/${input.country}/Local.json?${params.toString()}`;
+        const resp = await fetch(url, {
+          headers: {
+            Authorization: "Basic " + Buffer.from(`${user.twilioAccountSid}:${user.twilioAuthToken}`).toString("base64"),
+          },
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new Error(`TextGrid API error: ${err}`);
+        }
+        const data = await resp.json() as { available_phone_numbers: Array<{ phone_number: string; friendly_name: string; locality: string; region: string; postal_code: string; iso_country: string }> };
+        return data.available_phone_numbers ?? [];
+      }),
+
+    // Purchase a number via TextGrid API
+    purchase: protectedProcedure
+      .input(z.object({
+        phoneNumber: z.string(),
+        friendlyName: z.string().optional(),
+        webhookUrl: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const user = await getUserByOpenId(ctx.user.openId);
+        if (!user?.twilioAccountSid || !user?.twilioAuthToken) {
+          throw new Error("TextGrid credentials not configured.");
+        }
+        const body = new URLSearchParams();
+        body.set("PhoneNumber", input.phoneNumber);
+        if (input.friendlyName) body.set("FriendlyName", input.friendlyName);
+        // Set SMS webhook to our inbound handler
+        const webhookBase = process.env.WEBHOOK_BASE_URL || `https://api.textgrid.com`;
+        body.set("SmsUrl", input.webhookUrl || `${process.env.VITE_FRONTEND_FORGE_API_URL || webhookBase}/api/webhooks/sms/inbound`);
+        body.set("SmsMethod", "POST");
+        const url = `https://api.textgrid.com/2010-04-01/Accounts/${user.twilioAccountSid}/IncomingPhoneNumbers.json`;
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: "Basic " + Buffer.from(`${user.twilioAccountSid}:${user.twilioAuthToken}`).toString("base64"),
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: body.toString(),
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new Error(`TextGrid API error: ${err}`);
+        }
+        const data = await resp.json() as { sid: string; phone_number: string; friendly_name: string };
+        // Save to our DB
+        await addPhoneNumber({
+          userId: ctx.user.id,
+          phoneNumber: data.phone_number,
+          friendlyName: input.friendlyName || data.friendly_name || data.phone_number,
+          twilioSid: data.sid,
+        });
+        return { success: true, phoneNumber: data.phone_number, sid: data.sid };
+      }),
+
+    // Release (delete) a number from TextGrid and our DB
+    release: protectedProcedure
+      .input(z.object({ id: z.number(), twilioSid: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        const user = await getUserByOpenId(ctx.user.openId);
+        if (user?.twilioAccountSid && user?.twilioAuthToken && input.twilioSid) {
+          // Release from TextGrid
+          const url = `https://api.textgrid.com/2010-04-01/Accounts/${user.twilioAccountSid}/IncomingPhoneNumbers/${input.twilioSid}.json`;
+          await fetch(url, {
+            method: "DELETE",
+            headers: {
+              Authorization: "Basic " + Buffer.from(`${user.twilioAccountSid}:${user.twilioAuthToken}`).toString("base64"),
+            },
+          });
+        }
+        await deletePhoneNumber(input.id, ctx.user.id);
+        return { success: true };
+      }),
+
+    // List numbers owned in TextGrid account (sync from TextGrid)
+    syncFromTextGrid: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const user = await getUserByOpenId(ctx.user.openId);
+        if (!user?.twilioAccountSid || !user?.twilioAuthToken) {
+          throw new Error("TextGrid credentials not configured.");
+        }
+        const url = `https://api.textgrid.com/2010-04-01/Accounts/${user.twilioAccountSid}/IncomingPhoneNumbers.json?PageSize=100`;
+        const resp = await fetch(url, {
+          headers: {
+            Authorization: "Basic " + Buffer.from(`${user.twilioAccountSid}:${user.twilioAuthToken}`).toString("base64"),
+          },
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new Error(`TextGrid API error: ${err}`);
+        }
+        const data = await resp.json() as { incoming_phone_numbers: Array<{ sid: string; phone_number: string; friendly_name: string }> };
+        const numbers = data.incoming_phone_numbers ?? [];
+        const dbConn = await getDb();
+        let added = 0;
+        for (const num of numbers) {
+          // Check if already in our DB by twilioSid using direct select
+          const existing = dbConn ? await dbConn
+            .select()
+            .from(phoneNumbersTable)
+            .where(and(eq(phoneNumbersTable.userId, ctx.user.id), eq(phoneNumbersTable.twilioSid, num.sid)))
+            .limit(1) : [];
+          if (!existing.length) {
+            await addPhoneNumber({ userId: ctx.user.id, phoneNumber: num.phone_number, friendlyName: num.friendly_name, twilioSid: num.sid });
+            added++;
+          }
+        }
+        return { synced: numbers.length, added };
       }),
   }),
 
