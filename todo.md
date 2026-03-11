@@ -295,3 +295,9 @@
 - [x] Add follow-up queue logic: when AI labels lead as Not Interested, schedule a follow-up message after delay
 - [x] Add follow-up scheduler to batch engine tick (check for queued follow-ups and send)
 - [x] Add follow-up settings UI to campaign creation (toggle, delay picker, message textarea)
+
+## Labels — Seeding, Rename, and Messenger Assignment
+- [x] Seed default labels for new users on first login (Hot Lead, Interested, Not Interested, Wrong Number, Callback Requested, Under Contract, Closed, DNC)
+- [x] Add updateLabel backend procedure (rename + color change)
+- [x] Add rename/edit button to each label row in Settings Labels tab
+- [x] Verify label assignment works in Messenger conversation view

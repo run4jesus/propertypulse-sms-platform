@@ -11,11 +11,14 @@ import {
   Bot,
   CheckCircle2,
   Loader2,
+  Pencil,
   Phone,
   Plus,
   Settings2,
   Shield,
   Trash2,
+  X,
+  Check,
   Zap,
 } from "lucide-react";
 import { useState } from "react";
@@ -71,6 +74,19 @@ export default function Settings() {
       utils.labels.list.invalidate();
     },
   });
+
+  const updateLabel = trpc.labels.update.useMutation({
+    onSuccess: () => {
+      toast.success("Label updated");
+      utils.labels.list.invalidate();
+      setEditingLabelId(null);
+    },
+  });
+
+  // Label editing state
+  const [editingLabelId, setEditingLabelId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingColor, setEditingColor] = useState("#6366f1");
 
   const updateAiMode = trpc.settings.updateAiMode.useMutation({
     onSuccess: () => utils.auth.me.invalidate(),
@@ -323,18 +339,77 @@ export default function Settings() {
                       key={label.id}
                       className="flex items-center justify-between py-2 px-3 rounded-lg border border-border"
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: label.color }} />
-                        <span className="text-sm font-medium">{label.name}</span>
+                      {editingLabelId === label.id ? (
+                        <div className="flex items-center gap-2 flex-1 mr-2">
+                          <div className="flex gap-1 flex-wrap">
+                            {PRESET_COLORS.map((c) => (
+                              <button
+                                key={c}
+                                onClick={() => setEditingColor(c)}
+                                className={`h-5 w-5 rounded-full transition-transform ${editingColor === c ? "scale-125 ring-2 ring-offset-1 ring-foreground/30" : ""}`}
+                                style={{ backgroundColor: c }}
+                              />
+                            ))}
+                          </div>
+                          <Input
+                            value={editingName}
+                            onChange={(e) => setEditingName(e.target.value)}
+                            className="h-7 text-sm flex-1"
+                            autoFocus
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: label.color }} />
+                          <span className="text-sm font-medium">{label.name}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1">
+                        {editingLabelId === label.id ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-green-600 hover:text-green-700"
+                              onClick={() => updateLabel.mutate({ id: label.id, name: editingName, color: editingColor })}
+                              disabled={!editingName.trim() || updateLabel.isPending}
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground"
+                              onClick={() => setEditingLabelId(null)}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                setEditingLabelId(label.id);
+                                setEditingName(label.name);
+                                setEditingColor(label.color);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={() => deleteLabel.mutate({ id: label.id })}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => deleteLabel.mutate({ id: label.id })}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
                     </div>
                   ))}
                 </div>

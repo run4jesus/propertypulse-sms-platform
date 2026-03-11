@@ -61,6 +61,8 @@ import {
   getGroupMembers,
   getKeywordCampaigns,
   getLabels,
+  seedDefaultLabels,
+  updateLabel,
   getLatestAiSuggestion,
   getMacros,
   getMessages,
@@ -279,8 +281,15 @@ export const appRouter = router({
   // ─── Labels ─────────────────────────────────────────────────────────────────
   labels: router({
     list: protectedProcedure.query(async ({ ctx }) => {
+      await seedDefaultLabels(ctx.user.id);
       return getLabels(ctx.user.id);
     }),
+
+    update: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string(), color: z.string() }))
+      .mutation(async ({ ctx, input }) => {
+        await updateLabel(input.id, ctx.user.id, input.name, input.color);
+      }),
 
     create: protectedProcedure
       .input(z.object({ name: z.string(), color: z.string() }))

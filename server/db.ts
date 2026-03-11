@@ -124,6 +124,31 @@ export async function getLabels(userId: number) {
   return db.select().from(labels).where(eq(labels.userId, userId));
 }
 
+export async function updateLabel(id: number, userId: number, name: string, color: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(labels).set({ name, color }).where(and(eq(labels.id, id), eq(labels.userId, userId)));
+}
+
+const DEFAULT_LABELS = [
+  { name: "Hot Lead", color: "#ef4444" },
+  { name: "Interested", color: "#22c55e" },
+  { name: "Not Interested", color: "#6b7280" },
+  { name: "Wrong Number", color: "#f97316" },
+  { name: "Callback Requested", color: "#3b82f6" },
+  { name: "Under Contract", color: "#8b5cf6" },
+  { name: "Closed", color: "#14b8a6" },
+  { name: "DNC", color: "#dc2626" },
+];
+
+export async function seedDefaultLabels(userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  const existing = await db.select().from(labels).where(eq(labels.userId, userId));
+  if (existing.length > 0) return; // already has labels, skip
+  await db.insert(labels).values(DEFAULT_LABELS.map((l) => ({ userId, name: l.name, color: l.color })));
+}
+
 export async function createLabel(userId: number, name: string, color: string) {
   const db = await getDb();
   if (!db) return;
