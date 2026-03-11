@@ -340,6 +340,15 @@ export async function updateConversation(id: number, userId: number, data: Parti
   await db.update(conversations).set(data).where(and(eq(conversations.id, id), eq(conversations.userId, userId)));
 }
 
+export async function markConversationRead(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(conversations)
+    .set({ unreadCount: 0 })
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)));
+}
+
 export async function assignLabelToConversation(conversationId: number, labelId: number) {
   const db = await getDb();
   if (!db) return;

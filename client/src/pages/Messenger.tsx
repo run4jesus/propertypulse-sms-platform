@@ -316,6 +316,7 @@ export default function Messenger() {
               const cv = row.conversation;
               const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || c.phone;
               const isSelected = cv.id === selectedId;
+              const isUnread = cv.unreadCount > 0 && !isSelected;
               return (
                 <a
                   key={cv.id}
@@ -324,19 +325,32 @@ export default function Messenger() {
                     e.preventDefault();
                     window.history.pushState({}, "", `/messenger/${cv.id}`);
                     window.dispatchEvent(new PopStateEvent("popstate"));
+                    // Invalidate conversation list after a short delay so unread badge clears
+                    setTimeout(() => utils.conversations.list.invalidate(), 1500);
                   }}
                   className={`flex items-start gap-3 px-3 py-3 border-b border-border/50 cursor-pointer transition-colors hover:bg-accent/40 ${
-                    isSelected ? "bg-accent/60 border-l-2 border-l-primary" : ""
+                    isSelected
+                      ? "bg-accent/60 border-l-2 border-l-primary"
+                      : isUnread
+                      ? "bg-blue-50/60 dark:bg-blue-950/20 border-l-2 border-l-blue-500"
+                      : ""
                   }`}
                 >
-                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-sm font-semibold text-primary">
-                      {name.charAt(0).toUpperCase()}
-                    </span>
+                  <div className="relative h-9 w-9 shrink-0 mt-0.5">
+                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-semibold text-primary">
+                        {name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    {isUnread && (
+                      <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 border-2 border-background" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
-                      <span className={`text-sm font-medium truncate ${cv.unreadCount > 0 ? "font-semibold" : ""}`}>
+                      <span className={`text-sm truncate ${
+                        isUnread ? "font-bold text-foreground" : "font-medium text-foreground/80"
+                      }`}>
                         {name}
                       </span>
                       <span className="text-xs text-muted-foreground shrink-0">
@@ -376,8 +390,8 @@ export default function Messenger() {
                       })()}
                     </div>
                   </div>
-                  {cv.unreadCount > 0 && (
-                    <Badge className="h-5 min-w-5 p-0 flex items-center justify-center text-xs shrink-0">
+                  {isUnread && (
+                    <Badge className="h-5 min-w-5 p-0 flex items-center justify-center text-xs shrink-0 bg-blue-500 hover:bg-blue-500 text-white border-0">
                       {cv.unreadCount}
                     </Badge>
                   )}

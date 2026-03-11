@@ -306,3 +306,12 @@
 - [x] Backend: update conversations.list procedure to accept optional labelId filter
 - [x] Frontend: load user labels in Messenger sidebar and render a filter tab for each label
 - [x] Frontend: clicking a label filter tab filters the conversation list to only conversations with that label
+
+## Unread Message Indicators in Messenger
+- [x] Backend: markConversationRead() resets unreadCount to 0 when conversation is opened
+- [x] Backend: conversations.get procedure auto-calls markConversationRead on open
+- [x] Frontend: unread rows show blue left border + blue background highlight
+- [x] Frontend: unread avatar shows blue dot indicator in top-right corner
+- [x] Frontend: unread contact name is bold
+- [x] Frontend: blue badge shows unread count number
+- [x] Frontend: conversation list invalidates 1.5s after opening to clear unread state

@@ -86,6 +86,7 @@ import {
   updateContact,
   updateContactGroup,
   updateConversation,
+  markConversationRead,
   updateKeywordCampaign,
   updateMacro,
   updateUserAiMode,
@@ -482,6 +483,11 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const conv = await getConversationById(input.id, ctx.user.id);
         if (!conv) return null;
+        // Auto-mark as read when conversation is opened
+        if (conv.conversation.unreadCount > 0) {
+          await markConversationRead(input.id, ctx.user.id);
+          conv.conversation.unreadCount = 0;
+        }
         const convLabels = await getConversationLabels(input.id);
         const aiSuggestion = await getLatestAiSuggestion(input.id);
         return { ...conv, labels: convLabels, aiSuggestion };
