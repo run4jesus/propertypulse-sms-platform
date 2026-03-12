@@ -20,31 +20,40 @@ import ContactManagement from "./pages/ContactManagement";
 import PhoneNumbers from "./pages/PhoneNumbers";
 import Macros from "./pages/Macros";
 import Calendar from "./pages/Calendar";
+import SendQueue from "./pages/SendQueue";
 
 function Router() {
   return (
-    <DashboardLayout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/messenger" component={Messenger} />
-        <Route path="/messenger/:id" component={Messenger} />
-        <Route path="/campaigns" component={Campaigns} />
-        <Route path="/campaigns/keywords" component={KeywordCampaigns} />
-        <Route path="/contacts" component={Contacts} />
-        <Route path="/contacts/groups" component={ContactGroups} />
-        <Route path="/contacts/management" component={ContactManagement} />
-        <Route path="/workflows" component={Workflows} />
-        <Route path="/macros" component={Macros} />
-        <Route path="/calendar" component={Calendar} />
-        <Route path="/calls" component={CallLogs} />
-        <Route path="/reporting" component={Reporting} />
-        <Route path="/templates" component={Templates} />
-        <Route path="/phone-numbers" component={PhoneNumbers} />
-        <Route path="/settings" component={Settings} />
-        <Route path="/404" component={NotFound} />
-        <Route component={NotFound} />
-      </Switch>
-    </DashboardLayout>
+    <Switch>
+      {/* Full-screen pages — outside DashboardLayout */}
+      <Route path="/campaigns/:id/send-queue" component={SendQueue} />
+
+      {/* All other pages — inside DashboardLayout */}
+      <Route>
+        <DashboardLayout>
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/messenger" component={Messenger} />
+            <Route path="/messenger/:id" component={Messenger} />
+            <Route path="/campaigns" component={Campaigns} />
+            <Route path="/campaigns/keywords" component={KeywordCampaigns} />
+            <Route path="/contacts" component={Contacts} />
+            <Route path="/contacts/groups" component={ContactGroups} />
+            <Route path="/contacts/management" component={ContactManagement} />
+            <Route path="/workflows" component={Workflows} />
+            <Route path="/macros" component={Macros} />
+            <Route path="/calendar" component={Calendar} />
+            <Route path="/calls" component={CallLogs} />
+            <Route path="/reporting" component={Reporting} />
+            <Route path="/templates" component={Templates} />
+            <Route path="/phone-numbers" component={PhoneNumbers} />
+            <Route path="/settings" component={Settings} />
+            <Route path="/404" component={NotFound} />
+            <Route component={NotFound} />
+          </Switch>
+        </DashboardLayout>
+      </Route>
+    </Switch>
   );
 }
 

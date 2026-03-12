@@ -355,3 +355,16 @@
 - [x] Show success/failure toast when Podio push fires
 - [x] Add "Send Test Lead to Podio" button in Settings > Integrations
 - [x] Owner notification (in-app push) fires when Hot Lead is auto-labeled
+
+## Manual Send Queue with Template Rotation
+- [ ] Schema: add templateIds JSON column (up to 8 template IDs) to campaigns table
+- [ ] Backend: campaigns.getSendQueue — returns unsent contacts with pre-populated rotated message body (merge fields resolved)
+- [ ] Backend: campaigns.sendQueueItem — sends one message to one contact, marks as sent, returns next contact
+- [ ] Campaign setup UI: multi-template selector (up to 8 templates, shows name + preview snippet)
+- [ ] Send Queue page: full-screen lead card showing contact info + property address + personalized message preview
+- [ ] Send Queue: spacebar / Enter key sends current lead and advances to next
+- [ ] Send Queue: editable message textarea so user can tweak before sending
+- [ ] Send Queue: Skip button to skip current lead without sending
+- [ ] Send Queue: progress bar showing X of Y sent
+- [ ] Send Queue: template rotation indicator (e.g. "Template 3 of 8")
+- [ ] Send Queue: accessible from campaign detail page via "Start Sending" button

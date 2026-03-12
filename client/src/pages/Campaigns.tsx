@@ -32,6 +32,7 @@ import {
   Pencil,
   Play,
   Plus,
+  Send,
   Trash2,
   Zap,
   ShieldCheck,
@@ -42,6 +43,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -143,6 +145,8 @@ export default function Campaigns() {
   const [followUpDelayHours, setFollowUpDelayHours] = useState(24);
   const [followUpMessage, setFollowUpMessage] = useState("Thanks for your time! If anything changes on your end, feel free to reach out.");
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<number[]>([]);
+  const [, navigate] = useLocation();
   const [steps, setSteps] = useState<Step[]>([
     { stepNumber: 1, body: "", delayDays: 0, delayHours: 0 },
   ]);
@@ -559,48 +563,79 @@ export default function Campaigns() {
                 )}
 
                 {type === "standard" ? (
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <Label className="text-xs">Message</Label>
-                      <Popover open={templatePickerOpen} onOpenChange={setTemplatePickerOpen}>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                            <FileText className="h-3 w-3" />
-                            Use Template
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-72 p-2" align="end">
-                          <p className="text-xs font-medium text-muted-foreground mb-2">Select a template</p>
-                          {templates && templates.length > 0 ? (
-                            <div className="space-y-1 max-h-48 overflow-y-auto">
-                              {templates.map((t) => (
+                  <div className="space-y-3">
+                    {/* Multi-template selector for Send Queue rotation */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs">Message Templates (rotate up to 8)</Label>
+                        <Popover open={templatePickerOpen} onOpenChange={setTemplatePickerOpen}>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" disabled={selectedTemplateIds.length >= 8}>
+                              <FileText className="h-3 w-3" />
+                              Add Template
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-72 p-2" align="end">
+                            <p className="text-xs font-medium text-muted-foreground mb-2">Select a template to add</p>
+                            {templates && templates.length > 0 ? (
+                              <div className="space-y-1 max-h-48 overflow-y-auto">
+                                {templates.filter(t => !selectedTemplateIds.includes(t.id)).map((t) => (
+                                  <button
+                                    key={t.id}
+                                    className="w-full text-left px-2 py-1.5 rounded hover:bg-accent text-sm"
+                                    onClick={() => {
+                                      setSelectedTemplateIds(prev => [...prev, t.id]);
+                                      setMessage(prev => prev || t.body);
+                                      setTemplatePickerOpen(false);
+                                    }}
+                                  >
+                                    <p className="font-medium text-xs">{t.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">{t.body}</p>
+                                  </button>
+                                ))}
+                                {templates.filter(t => !selectedTemplateIds.includes(t.id)).length === 0 && (
+                                  <p className="text-xs text-muted-foreground text-center py-2">All templates added</p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground text-center py-3">No templates yet. Create one in Templates.</p>
+                            )}
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      {selectedTemplateIds.length > 0 ? (
+                        <div className="space-y-1">
+                          {selectedTemplateIds.map((tId, idx) => {
+                            const tpl = templates?.find(t => t.id === tId);
+                            return (
+                              <div key={tId} className="flex items-center gap-2 px-2 py-1.5 rounded bg-muted/50 border border-border">
+                                <span className="text-xs font-bold text-primary w-4 shrink-0">{idx + 1}</span>
+                                <span className="text-xs font-medium flex-1 truncate">{tpl?.name ?? `Template ${tId}`}</span>
                                 <button
-                                  key={t.id}
-                                  className="w-full text-left px-2 py-1.5 rounded hover:bg-accent text-sm"
-                                  onClick={() => {
-                                    setMessage(t.body);
-                                    setTemplatePickerOpen(false);
-                                  }}
+                                  className="text-muted-foreground hover:text-destructive text-xs"
+                                  onClick={() => setSelectedTemplateIds(prev => prev.filter(id => id !== tId))}
                                 >
-                                  <p className="font-medium text-xs">{t.name}</p>
-                                  <p className="text-xs text-muted-foreground truncate">{t.body}</p>
+                                  ×
                                 </button>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-xs text-muted-foreground text-center py-3">No templates yet. Create one in Templates.</p>
-                          )}
-                        </PopoverContent>
-                      </Popover>
+                              </div>
+                            );
+                          })}
+                          <p className="text-xs text-muted-foreground mt-1">Templates rotate in order across contacts in the Send Queue</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <Textarea
+                            placeholder="Hi {FirstName}, I'm interested in your property at {PropertyAddress}..."
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            className="min-h-[100px]"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {message.length} chars · Or add templates above to rotate up to 8 variants
+                          </p>
+                        </div>
+                      )}
                     </div>
-                    <Textarea
-                      placeholder="Hi {FirstName}, I'm interested in your property at {PropertyAddress}..."
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      className="min-h-[100px]"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {message.length} chars · Use {"{"}FirstName{"}"},  {"{"}LastName{"}"},  {"{"}PropertyAddress{"}"},  {"{"}PropertyCity{"}"},  {"{"}PropertyState{"}"},  {"{"}PropertyZip{"}"}           </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -831,6 +866,14 @@ export default function Campaigns() {
                     Resume
                   </Button>
                 )}
+                <Button
+                  size="sm"
+                  className="bg-primary hover:bg-primary/90 gap-1.5"
+                  onClick={() => navigate(`/campaigns/${selectedId}/send-queue`)}
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  Start Send Queue
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

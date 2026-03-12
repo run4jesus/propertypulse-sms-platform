@@ -204,6 +204,8 @@ export const campaigns = mysqlTable("campaigns", {
   phoneNumberId: int("phoneNumberId"),
   // Phone number rotation — up to 3 numbers, stored as JSON array of phoneNumber IDs
   phoneNumberIds: json("phonenumberids").$type<number[]>(),
+  // Manual send queue — up to 8 template IDs to rotate through
+  templateIds: json("templateids").$type<number[]>(),
   // Not-interested follow-up automation
   followUpEnabled: boolean("followupenabled").default(false).notNull(),
   followUpDelayHours: int("followupdelayhours").default(24).notNull(),

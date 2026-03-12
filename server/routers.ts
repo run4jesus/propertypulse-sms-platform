@@ -635,6 +635,7 @@ export const appRouter = router({
         scrubFederalDnc: z.boolean().default(false),
         scrubExistingContacts: z.boolean().default(false),
         phoneNumberIds: z.array(z.number()).max(3).default([]),
+        templateIds: z.array(z.number()).max(8).default([]),
         followUpEnabled: z.boolean().default(false),
         followUpDelayHours: z.number().min(1).max(720).default(24),
         followUpMessage: z.string().optional(),
@@ -676,6 +677,7 @@ export const appRouter = router({
         scrubFederalDnc: z.boolean().optional(),
         scrubExistingContacts: z.boolean().optional(),
         phoneNumberIds: z.array(z.number()).max(3).optional(),
+        templateIds: z.array(z.number()).max(8).optional(),
         followUpEnabled: z.boolean().optional(),
         followUpDelayHours: z.number().min(1).max(720).optional(),
         followUpMessage: z.string().optional(),
@@ -797,6 +799,93 @@ export const appRouter = router({
           removedFederalDnc,
           removedExisting,
         };
+      }),
+
+    getSendQueue: protectedProcedure
+      .input(z.object({ campaignId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        const campaign = await getCampaignById(input.campaignId, ctx.user.id);
+        if (!campaign) throw new Error("Campaign not found");
+        // Load templates for this campaign
+        const tplIds: number[] = (campaign as any).templateIds ?? [];
+        let templates: { id: number; name: string; body: string }[] = [];
+        if (tplIds.length > 0) {
+          const { campaignTemplates: tplTable } = await import("../drizzle/schema");
+          const allTpls = await db.select({ id: tplTable.id, name: tplTable.name, body: tplTable.body })
+            .from(tplTable)
+            .where(sql`${tplTable.id} IN (${sql.join(tplIds.map((id: number) => sql`${id}`), sql`, `)})`);
+          // Sort by templateIds order
+          templates = allTpls.sort((a, b) => tplIds.indexOf(a.id) - tplIds.indexOf(b.id));
+        }
+        // Get all contacts in the campaign list
+        if (!campaign.contactListId) return { contacts: [], templates, campaign };
+        const { resolveMergeFields } = await import("./smsEngine");
+        const allContacts = await db
+          .select({ contact: contacts })
+          .from(contactListMembers)
+          .innerJoin(contacts, eq(contactListMembers.contactId, contacts.id))
+          .where(eq(contactListMembers.listId, campaign.contactListId));
+        // Filter out opted-out contacts
+        const sendable = allContacts.map(r => r.contact).filter(c => !c.optedOut);
+        // For each contact, pre-populate the rotated message body
+        const queueItems = sendable.map((contact, idx) => {
+          const tpl = templates.length > 0 ? templates[idx % templates.length] : null;
+          const rawBody = tpl?.body ?? "";
+          const resolvedBody = resolveMergeFields(rawBody, contact);
+          return {
+            contact,
+            templateId: tpl?.id ?? null,
+            templateName: tpl?.name ?? null,
+            templateIndex: templates.length > 0 ? (idx % templates.length) + 1 : null,
+            templateCount: templates.length,
+            resolvedBody,
+          };
+        });
+        return { contacts: queueItems, templates, campaign };
+      }),
+
+    sendQueueItem: protectedProcedure
+      .input(z.object({
+        campaignId: z.number(),
+        contactId: z.number(),
+        body: z.string(),
+        fromPhoneNumberId: z.number(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        const user = await getUserByOpenId(ctx.user.openId);
+        if (!user?.twilioAccountSid || !user?.twilioAuthToken) throw new Error("TextGrid credentials not configured");
+        const { phoneNumbers: phoneNumbersSchema } = await import("../drizzle/schema");
+        const [fromPhone] = await db.select().from(phoneNumbersSchema).where(and(eq(phoneNumbersSchema.id, input.fromPhoneNumberId), eq(phoneNumbersSchema.userId, ctx.user.id))).limit(1);
+        if (!fromPhone) throw new Error("Phone number not found");
+        const contact = await getContactById(input.contactId, ctx.user.id);
+        if (!contact) throw new Error("Contact not found");
+        const { sendSms } = await import("./smsEngine");
+        const result = await sendSms({
+          accountSid: user.twilioAccountSid,
+          authToken: user.twilioAuthToken,
+          from: fromPhone.phoneNumber,
+          to: contact.phone,
+          body: input.body,
+        });
+        const conv = await getOrCreateConversation(ctx.user.id, contact.id, fromPhone.id);
+        if (!conv) throw new Error("Could not create conversation");
+        const success = result !== null;
+        await createMessage({
+          conversationId: conv.id,
+          userId: ctx.user.id,
+          direction: "outbound",
+          body: input.body,
+          twilioSid: result?.sid ?? undefined,
+          status: success ? "sent" : "failed",
+          campaignId: input.campaignId,
+        });
+        const { campaigns: campaignsTable } = await import("../drizzle/schema");
+        await db.update(campaignsTable).set({ sent: sql`${campaignsTable.sent} + 1` }).where(eq(campaignsTable.id, input.campaignId));
+        return { success, sid: result?.sid ?? null };
       }),
 
     templates: router({
