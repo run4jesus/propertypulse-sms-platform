@@ -28,9 +28,61 @@ import { invokeLLM } from "./_core/llm";
 const OPT_OUT_KEYWORDS = ["stop", "unsubscribe", "quit", "cancel", "end", "stopall", "remove"];
 const OPT_IN_KEYWORDS = ["start", "unstop"];
 
-// ─── Reply keyword auto-labeling ─────────────────────────────────────────────
-const HOT_LEAD_KEYWORDS = ["interested", "yes", "call me", "i'm interested", "im interested", "want to sell", "how much", "what's your offer", "whats your offer", "make an offer"];
-const NOT_INTERESTED_KEYWORDS = ["not interested", "no thanks", "not selling", "dont contact", "don't contact", "remove me", "take me off"];
+// ─── LLM-based intent classification ────────────────────────────────────────
+// Returns: 'hot_lead' | 'warm_lead' | 'not_interested' | 'neutral'
+async function classifyInboundIntent(
+  transcript: string,
+  latestMessage: string
+): Promise<"hot_lead" | "warm_lead" | "not_interested" | "neutral"> {
+  try {
+    const result = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `You are a real estate wholesaling assistant. Classify the seller's latest reply intent.
+
+Return ONLY a JSON object with one field: "intent"
+Allowed values:
+- "hot_lead": seller is clearly motivated and wants to sell (e.g. "yes interested", "call me", "how much", "make an offer", "I want to sell")
+- "warm_lead": seller is open but not committed (e.g. "maybe", "tell me more", "what would you offer", "I might be interested")
+- "not_interested": seller explicitly declines (e.g. "not interested", "no thanks", "don't contact me", "stop texting")
+- "neutral": question, clarification, or unclear intent
+
+Only classify as hot_lead or not_interested when very confident. When in doubt, use neutral.`,
+        },
+        {
+          role: "user",
+          content: `Conversation so far:\n${transcript}\n\nLatest seller message: "${latestMessage}"`,
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "intent_classification",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              intent: { type: "string", enum: ["hot_lead", "warm_lead", "not_interested", "neutral"] },
+            },
+            required: ["intent"],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    const content = result.choices[0]?.message?.content;
+    if (typeof content === "string") {
+      const parsed = JSON.parse(content) as { intent: string };
+      if (["hot_lead", "warm_lead", "not_interested", "neutral"].includes(parsed.intent)) {
+        return parsed.intent as "hot_lead" | "warm_lead" | "not_interested" | "neutral";
+      }
+    }
+  } catch (err) {
+    console.error("[SMS] LLM classification error, falling back to neutral:", err);
+  }
+  return "neutral";
+}
 
 // ─── Merge field resolver ─────────────────────────────────────────────────────
 export function resolveMergeFields(
@@ -287,17 +339,30 @@ export async function handleInboundSms(
     isAiGenerated: false,
   });
 
-  // ─── Reply keyword auto-labeling ─────────────────────────────────────────
+  // ─── LLM-based intent classification + auto-labeling ────────────────────────
   if (!OPT_OUT_KEYWORDS.includes(bodyLower)) {
-    const isHotLead = HOT_LEAD_KEYWORDS.some((kw) => bodyLower.includes(kw));
-    const isNotInterested = NOT_INTERESTED_KEYWORDS.some((kw) => bodyLower.includes(kw));
+    try {
+      const recentForClassify = await db
+        .select()
+        .from(messages)
+        .where(eq(messages.conversationId, conversation.id))
+        .orderBy(sql`${messages.createdAt} DESC`)
+        .limit(8);
+      const classifyTranscript = recentForClassify
+        .reverse()
+        .map((m) => `${m.direction === "outbound" ? "Agent" : "Seller"}: ${m.body}`)
+        .join("\n");
 
-    if (isHotLead || isNotInterested) {
-      try {
+      const intent = await classifyInboundIntent(classifyTranscript, Body);
+      const isHotLead = intent === "hot_lead";
+      const isWarmLead = intent === "warm_lead";
+      const isNotInterested = intent === "not_interested";
+
+      if (isHotLead || isWarmLead || isNotInterested) {
         const { labels, conversationLabels } = await import("../drizzle/schema");
-        const targetLabelName = isHotLead ? "Hot Lead" : "Not Interested";
+        const targetLabelName = isHotLead ? "Hot Lead" : isWarmLead ? "Warm Lead" : "Not Interested";
+        const labelColor = isHotLead ? "#ef4444" : isWarmLead ? "#f97316" : "#6b7280";
 
-        // Find or create the label for this user
         let [targetLabel] = await db
           .select()
           .from(labels)
@@ -305,11 +370,7 @@ export async function handleInboundSms(
           .limit(1);
 
         if (!targetLabel) {
-          await db.insert(labels).values({
-            userId,
-            name: targetLabelName,
-            color: isHotLead ? "#ef4444" : "#6b7280",
-          });
+          await db.insert(labels).values({ userId, name: targetLabelName, color: labelColor });
           [targetLabel] = await db
             .select()
             .from(labels)
@@ -318,16 +379,13 @@ export async function handleInboundSms(
         }
 
         if (targetLabel && conversation) {
-          // Check if label already assigned
           const [existing] = await db
             .select()
             .from(conversationLabels)
-            .where(
-              and(
-                eq(conversationLabels.conversationId, conversation.id),
-                eq(conversationLabels.labelId, targetLabel.id)
-              )
-            )
+            .where(and(
+              eq(conversationLabels.conversationId, conversation.id),
+              eq(conversationLabels.labelId, targetLabel.id)
+            ))
             .limit(1);
 
           if (!existing) {
@@ -335,24 +393,21 @@ export async function handleInboundSms(
               conversationId: conversation.id,
               labelId: targetLabel.id,
             });
-            console.log(`[SMS] Auto-labeled conversation ${conversation.id} as "${targetLabelName}"`);
+            console.log(`[SMS] LLM classified "${intent}" -> auto-labeled conversation ${conversation.id} as "${targetLabelName}"`);
 
-            // ─── Hot Lead: notify owner + push to Podio ───────────────────
-            if (isHotLead) {
-              // Owner notification
+            if (isHotLead || isWarmLead) {
               try {
                 const { notifyOwner } = await import("./_core/notification");
                 const contactName = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.phone;
                 const propAddr = contact.propertyAddress || contact.address || "Address not on file";
                 const convUrl = `https://lotpulsesms-zmwera2y.manus.space/messenger?conversationId=${conversation.id}`;
                 await notifyOwner({
-                  title: `\uD83D\uDD25 Hot Lead: ${contactName}`,
+                  title: `${isHotLead ? "HOT Lead" : "Warm Lead"}: ${contactName}`,
                   content: `Contact: ${contactName}\nPhone: ${contact.phone}\nProperty: ${propAddr}\nLast message: "${Body.slice(0, 120)}"\n\nOpen conversation: ${convUrl}`,
                 });
               } catch (notifErr) {
-                console.error("[SMS] Hot lead notification error:", notifErr);
+                console.error("[SMS] Lead notification error:", notifErr);
               }
-              // Push to Podio External Leads (if enabled for this user)
               try {
                 const [userRow] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
                 if ((userRow as any)?.podioEnabled) {
@@ -368,7 +423,7 @@ export async function handleInboundSms(
                     lastName: contact.lastName || "",
                     phone: contact.phone,
                     propertyAddress: contact.propertyAddress || contact.address || "",
-                    temperature: "HOT",
+                    temperature: isHotLead ? "HOT" : "Warm",
                     conversationThread: thread,
                     webformUrl: (userRow as any)?.podioWebformUrl || undefined,
                   });
@@ -378,20 +433,16 @@ export async function handleInboundSms(
               }
             }
 
-            // Queue follow-up message if this is a "Not Interested" label and the campaign has followUpEnabled
             if (isNotInterested) {
               try {
                 const { followUpQueue } = await import("../drizzle/schema");
-                // Look up the campaign via the first outbound message in this conversation
                 const [firstOutbound] = await db
                   .select({ campaignId: messages.campaignId })
                   .from(messages)
-                  .where(
-                    and(
-                      eq(messages.conversationId, conversation.id),
-                      eq(messages.direction, "outbound")
-                    )
-                  )
+                  .where(and(
+                    eq(messages.conversationId, conversation.id),
+                    eq(messages.direction, "outbound")
+                  ))
                   .orderBy(messages.id)
                   .limit(1);
 
@@ -406,17 +457,13 @@ export async function handleInboundSms(
                   if (camp && (camp as any).followUpEnabled && (camp as any).followUpMessage) {
                     const delayHours = (camp as any).followUpDelayHours ?? 24;
                     const scheduledAt = new Date(Date.now() + delayHours * 60 * 60 * 1000);
-
-                    // Only queue if not already queued for this conversation
                     const [existingFollowUp] = await db
                       .select()
                       .from(followUpQueue)
-                      .where(
-                        and(
-                          eq(followUpQueue.conversationId, conversation.id),
-                          eq(followUpQueue.status, "pending")
-                        )
-                      )
+                      .where(and(
+                        eq(followUpQueue.conversationId, conversation.id),
+                        eq(followUpQueue.status, "pending")
+                      ))
                       .limit(1);
 
                     if (!existingFollowUp) {
@@ -440,12 +487,11 @@ export async function handleInboundSms(
             }
           }
         }
-      } catch (err) {
-        console.error("[SMS] Auto-labeling error:", err);
       }
+    } catch (err) {
+      console.error("[SMS] Auto-labeling error:", err);
     }
   }
-
   // ─── AI auto-reply (if AI mode enabled globally + per conversation) ───────
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (
@@ -729,9 +775,21 @@ export async function processCampaignBatches() {
           body: messageBody,
         });
 
-        if (result) {
-          sentCount++;
+        if (!result) {
+          // Send failed — increment failed counter on campaign
+          console.warn(`[BatchEngine] Send failed for contact ${contact.id} (${contact.phone}) in campaign ${campaign.id}`);
+          try {
+            await db
+              .update(campaigns)
+              .set({ failed: sql`COALESCE(${campaigns.failed}, 0) + 1` })
+              .where(eq(campaigns.id, campaign.id));
+          } catch (_e) { /* ignore */ }
+          continue;
+        }
 
+        sentCount++;
+
+        {
           // Find or create conversation
           let [conv] = await db
             .select()
@@ -788,7 +846,6 @@ export async function processCampaignBatches() {
           }
         }
       }
-
       // Update campaign stats and batch tracking
       const newOffset = campaign.nextBatchOffset + batchContacts.length;
       await db
@@ -939,7 +996,7 @@ export function registerSmsRoutes(app: Express) {
               .set({ status: mappedStatus })
               .where(eq(messages.twilioSid, MessageSid));
 
-            // If delivered, increment campaign delivered count
+            // Update campaign delivery counters
             if (mappedStatus === "delivered") {
               await db
                 .update(campaigns)
@@ -947,6 +1004,19 @@ export function registerSmsRoutes(app: Express) {
                 .where(
                   sql`${campaigns.id} IN (SELECT campaignId FROM messages WHERE twilioSid = ${MessageSid} LIMIT 1)`
                 );
+            } else if (mappedStatus === "failed" || mappedStatus === "undelivered") {
+              // Increment failed count (uses the 'failed' column if it exists, otherwise log)
+              try {
+                await db
+                  .update(campaigns)
+                  .set({ failed: sql`COALESCE(${campaigns.failed}, 0) + 1` })
+                  .where(
+                    sql`${campaigns.id} IN (SELECT campaignId FROM messages WHERE twilioSid = ${MessageSid} LIMIT 1)`
+                  );
+              } catch (_colErr) {
+                // Column may not exist yet — log and continue
+                console.warn("[SMS] Could not increment failed count (column may be missing):", _colErr);
+              }
             }
           }
         }

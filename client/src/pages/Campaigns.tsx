@@ -1032,20 +1032,37 @@ export default function Campaigns() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
               {[
-                { label: "Sent", value: selectedCampaign.sent, icon: Zap },
-                { label: "Delivered", value: selectedCampaign.delivered, icon: CheckCircle2 },
-                { label: "Replied", value: selectedCampaign.replied, icon: BarChart2 },
-                { label: "Opted Out", value: selectedCampaign.optedOut, icon: Pause },
+                { label: "Sent", value: selectedCampaign.sent, icon: Zap, color: "" },
+                { label: "Delivered", value: selectedCampaign.delivered, icon: CheckCircle2, color: "text-green-600" },
+                { label: "Replied", value: selectedCampaign.replied, icon: BarChart2, color: "text-blue-600" },
+                { label: "Failed", value: (selectedCampaign as any).failed ?? 0, icon: Pause, color: "text-red-500" },
+                { label: "Opted Out", value: selectedCampaign.optedOut, icon: Pause, color: "text-yellow-600" },
               ].map((stat) => (
                 <Card key={stat.label} className="border shadow-sm">
                   <CardContent className="p-4">
-                    <p className="text-2xl font-bold">{stat.value}</p>
+                    <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{stat.label}</p>
                   </CardContent>
                 </Card>
               ))}
+              {/* Delivery Rate */}
+              <Card className="border shadow-sm">
+                <CardContent className="p-4">
+                  <p className={`text-2xl font-bold ${
+                    selectedCampaign.sent === 0 ? "" :
+                    Math.round((selectedCampaign.delivered / selectedCampaign.sent) * 100) >= 80 ? "text-green-600" :
+                    Math.round((selectedCampaign.delivered / selectedCampaign.sent) * 100) >= 60 ? "text-yellow-600" :
+                    "text-red-500"
+                  }`}>
+                    {selectedCampaign.sent > 0
+                      ? `${Math.round((selectedCampaign.delivered / selectedCampaign.sent) * 100)}%`
+                      : "—"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Delivery Rate</p>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Drip Steps */}

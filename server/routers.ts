@@ -829,8 +829,25 @@ export const appRouter = router({
           .from(contactListMembers)
           .innerJoin(contacts, eq(contactListMembers.contactId, contacts.id))
           .where(eq(contactListMembers.listId, campaign.contactListId));
-        // Filter out opted-out contacts
-        const sendable = allContacts.map(r => r.contact).filter(c => !c.optedOut);
+        // Normalize phone numbers and filter out opted-out, malformed, or duplicate numbers
+        const normalizePhone = (p: string) => {
+          const digits = p.replace(/\D/g, "");
+          if (digits.length === 10) return `+1${digits}`;
+          if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+          if (digits.length > 7) return `+${digits}`;
+          return null; // invalid
+        };
+        const seenPhones = new Set<string>();
+        const sendable = allContacts
+          .map(r => r.contact)
+          .filter(c => {
+            if (c.optedOut) return false;
+            const normalized = normalizePhone(c.phone);
+            if (!normalized) return false; // skip malformed
+            if (seenPhones.has(normalized)) return false; // skip duplicate
+            seenPhones.add(normalized);
+            return true;
+          });
         // For each contact, pre-populate the rotated message body
         const queueItems = sendable.map((contact, idx) => {
           const tpl = templates.length > 0 ? templates[idx % templates.length] : null;

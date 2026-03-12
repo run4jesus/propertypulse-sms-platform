@@ -374,3 +374,26 @@
 - [ ] Campaign create/update UI: Send Mode radio toggle — Automated shows batch settings, Manual hides them
 - [ ] Automated batch engine: rotate through templateIds when sending instead of single messageBody
 - [ ] Campaign detail: show "Start Send Queue" button only when sendMode = 'manual'; show Start/Resume for automated
+
+## Production-Readiness Fixes
+
+### Fix 1: Send Queue Edge Cases
+- [ ] Phone number normalization: validate E.164 format before queue loads, skip malformed numbers with a warning count
+- [ ] Unique conversation constraint: database-level unique index on (userId, contactPhone) to prevent duplicate conversations
+- [ ] Server-side queue progress: persist queueIndex per campaign in DB so Send Queue can resume after tab close
+
+### Fix 2: LLM-Based AI Classification
+- [ ] Replace keyword list with LLM classification call on each inbound message
+- [ ] LLM returns intent (interested/not_interested/neutral/asking_price) and suggestedLabel (Hot Lead/Warm Lead/Not Interested/null)
+- [ ] Use suggestedLabel to auto-assign conversation label instead of keyword matching
+
+### Fix 3: Failed Send Retry Logic
+- [ ] Add failedSends table: campaignId, contactId, phone, error, attempts, lastAttemptAt, resolved
+- [ ] On send failure: log to failedSends instead of silently skipping
+- [ ] Retry sweep in batch engine: retry failed sends up to 3 times with exponential backoff
+- [ ] Show Failed count in campaign stats panel
+
+### Fix 4: Delivery Rate Monitoring
+- [ ] Wire /api/sms/status callback to update message.deliveryStatus in DB (delivered/undelivered/failed)
+- [ ] Add deliveryRate % calculation to campaign stats query
+- [ ] Flag numbers with <80% delivery rate in Phone Numbers page
