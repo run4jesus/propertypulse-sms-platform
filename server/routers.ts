@@ -1,6 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { ENV } from "./_core/env";
 import { invokeLLM } from "./_core/llm";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -103,7 +104,16 @@ export const appRouter = router({
   system: systemRouter,
 
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    me: publicProcedure.query(async (opts) => {
+      // Auto-seed TextGrid credentials from env vars if not yet stored for this user
+      if (opts.ctx.user && ENV.textgridAccountSid && ENV.textgridAuthToken) {
+        const dbUser = await getUserByOpenId(opts.ctx.user.openId);
+        if (dbUser && (!dbUser.twilioAccountSid || !dbUser.twilioAuthToken)) {
+          await updateUserTwilio(opts.ctx.user.id, ENV.textgridAccountSid, ENV.textgridAuthToken);
+        }
+      }
+      return opts.ctx.user;
+    }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
