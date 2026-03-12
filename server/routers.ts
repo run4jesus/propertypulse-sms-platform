@@ -92,6 +92,7 @@ import {
   updateMacro,
   updateUserAiMode,
   updateUserTwilio,
+  updateUserPodio,
   updateWorkflow,
 } from "./db";
 import { transcribeAudio } from "./_core/voiceTranscription";
@@ -135,6 +136,28 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await updateUserTwilio(ctx.user.id, input.accountSid, input.authToken);
         return { success: true };
+      }),
+
+    updatePodio: protectedProcedure
+      .input(z.object({ enabled: z.boolean(), webformUrl: z.string().optional() }))
+      .mutation(async ({ ctx, input }) => {
+        await updateUserPodio(ctx.user.id, input.enabled, input.webformUrl);
+        return { success: true };
+      }),
+
+    testPodio: protectedProcedure
+      .input(z.object({ webformUrl: z.string().optional() }))
+      .mutation(async ({ ctx }) => {
+        const { pushLeadToPodio } = await import("./podioIntegration");
+        const result = await pushLeadToPodio({
+          firstName: "Test",
+          lastName: "Lead",
+          phone: "+10000000000",
+          propertyAddress: "123 Test St, Fort Worth TX 76101",
+          temperature: "HOT",
+          conversationThread: "[LotPulse SMS Test Push]\n[Agent]: Hey, are you interested in selling?\n[Seller]: Yes I'm interested, how much?",
+        });
+        return result;
       }),
   }),
 

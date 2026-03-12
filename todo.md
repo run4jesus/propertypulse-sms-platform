@@ -323,3 +323,35 @@
 ## Auto-configure Webhooks on Number Purchase
 - [x] After purchasing a number via TextGrid API, immediately call TextGrid UpdateNumber API to set smsUrl (POST) and statuscallBackUrl (POST)
 - [x] No manual webhook setup needed for any future numbers purchased through LotPulse
+
+## Hot Lead In-App Notification
+- [ ] When AI assigns Hot Lead or Warm Lead label to a conversation, trigger notifyOwner alert
+- [ ] Notification includes: contact name, phone number, property address (if known), AI lead score, last message snippet, and a direct link to the conversation
+- [ ] Show a persistent notification badge/banner in the UI for unacknowledged hot lead alerts
+
+## Zapier Webhook Integration (Podio Seller Leads)
+- [ ] Add zapierWebhookUrl column to users table in schema
+- [ ] Push schema migration
+- [ ] Add Settings > Integrations tab with Zapier webhook URL input field
+- [ ] Backend: when a conversation is labeled Hot Lead or Warm Lead (or disposition set to interested/callback_requested), POST lead payload to user's Zapier webhook URL
+- [ ] Payload includes: contact name, phone, property address, city, state, zip, label/disposition, AI lead score, conversation URL, timestamp
+- [ ] Show success/failure toast when webhook fires
+- [ ] Add test webhook button in Settings > Integrations tab
+
+## AI Conversation Framework (Playbook Stages)
+- [ ] Define 6-stage conversation playbook in AI system prompt: Acknowledge → Qualify → Motivation → Condition → Soft Offer → Hot Lead Flag
+- [ ] Each stage has a goal and guardrails, not a script — AI uses its own words
+- [ ] AI tracks which stage the conversation is in and advances naturally
+- [ ] Stage 6 triggers Hot Lead label + notifyOwner + Zapier webhook
+- [ ] Add persona definition to AI prompt (name, tone, market knowledge)
+- [ ] Add "are you a bot?" detection — deflect naturally or flag for human takeover
+
+## Podio External Leads Direct Integration (No Zapier)
+- [x] Backend: pushLeadToPodio() helper — POST to https://podio.com/webforms/26979599/2064774 with mapped fields
+- [x] Fields: firstName→fields[title], lastName→fields[last-name], phone→fields[phone-number][][value], propertyAddress→fields[property-address-map], temperature (HOT/Warm), lead source="SMS Callbacks", conversation thread→fields[details...]
+- [x] Trigger pushLeadToPodio when AI auto-assigns Hot Lead label in smsEngine
+- [x] Add podioEnabled + podioWebformUrl to users table (migrated via SQL)
+- [x] Settings > Integrations tab with Podio enable toggle and webform URL override
+- [x] Show success/failure toast when Podio push fires
+- [x] Add "Send Test Lead to Podio" button in Settings > Integrations
+- [x] Owner notification (in-app push) fires when Hot Lead is auto-labeled

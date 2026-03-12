@@ -10,6 +10,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import {
   Bot,
   CheckCircle2,
+  ExternalLink,
+  Link2,
   Loader2,
   Pencil,
   Phone,
@@ -92,8 +94,29 @@ export default function Settings() {
     onSuccess: () => utils.auth.me.invalidate(),
   });
 
+  const updatePodio = trpc.settings.updatePodio.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+      toast.success("Podio integration settings saved");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save Podio settings"),
+  });
+
+  const testPodio = trpc.settings.testPodio.useMutation({
+    onSuccess: (result: any) => {
+      if (result?.success) {
+        toast.success("Test lead pushed to Podio successfully!");
+      } else {
+        toast.error(`Podio test failed: ${result?.error || "Unknown error"}`);
+      }
+    },
+    onError: (e: any) => toast.error(e.message || "Test push failed"),
+  });
+
   const { data: me } = trpc.auth.me.useQuery();
   const aiEnabled = (me as any)?.aiModeEnabled ?? false;
+  const podioEnabled = (me as any)?.podioEnabled ?? false;
+  const [podioWebformUrl, setPodioWebformUrl] = useState("");
 
   const PRESET_COLORS = [
     "#ef4444", "#f97316", "#eab308", "#22c55e",
@@ -124,6 +147,10 @@ export default function Settings() {
           <TabsTrigger value="account" className="gap-1.5">
             <Settings2 className="h-3.5 w-3.5" />
             Account
+          </TabsTrigger>
+          <TabsTrigger value="integrations" className="gap-1.5">
+            <Link2 className="h-3.5 w-3.5" />
+            Integrations
           </TabsTrigger>
         </TabsList>
 
@@ -443,6 +470,96 @@ export default function Settings() {
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Shield className="h-3.5 w-3.5" />
                 <span>Role: {(user as any)?.role ?? "user"}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        {/* Integrations */}
+        <TabsContent value="integrations" className="space-y-4">
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <img src="https://www.podio.com/favicon.ico" className="h-4 w-4" alt="Podio" />
+                  Podio — External Leads
+                </CardTitle>
+                <Badge variant={podioEnabled ? "default" : "secondary"} className={`text-xs ${podioEnabled ? "bg-emerald-600" : ""}`}>
+                  {podioEnabled ? "Connected" : "Disabled"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                When enabled, every lead labeled <strong>Hot Lead</strong> is automatically pushed into your Podio <strong>External Leads</strong> app with the full conversation thread in the Notes field.
+              </p>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Enable Podio Push</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Auto-push Hot Leads to Podio External Leads app
+                  </p>
+                </div>
+                <Switch
+                  checked={podioEnabled}
+                  onCheckedChange={(checked) => {
+                    updatePodio.mutate({ enabled: checked });
+                  }}
+                  disabled={updatePodio.isPending}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Webform URL (optional override)</Label>
+                <Input
+                  placeholder="https://podio.com/webforms/26979599/2064774"
+                  value={podioWebformUrl}
+                  onChange={(e) => setPodioWebformUrl(e.target.value)}
+                  className="h-8 text-xs font-mono"
+                />
+                <p className="text-xs text-muted-foreground">Leave blank to use the default MHS CRM External Leads webform.</p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => updatePodio.mutate({ enabled: podioEnabled, webformUrl: podioWebformUrl || undefined })}
+                  disabled={updatePodio.isPending}
+                >
+                  {updatePodio.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                  Save Settings
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => testPodio.mutate({})}
+                  disabled={testPodio.isPending}
+                >
+                  {testPodio.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
+                  Send Test Lead to Podio
+                </Button>
+                <a
+                  href="https://podio.com/themetrohomesolutionscom/mhs-crm/apps/external-leads"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-md border border-border hover:bg-muted/40"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Open Podio App
+                </a>
+              </div>
+
+              <div className="rounded-lg bg-muted/40 p-3 space-y-1">
+                <p className="text-xs font-medium">What gets pushed to Podio:</p>
+                <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside">
+                  <li>First &amp; Last Name</li>
+                  <li>Phone Number (Mobile)</li>
+                  <li>Property Address</li>
+                  <li>Temperature: HOT</li>
+                  <li>Lead Source: SMS Callbacks</li>
+                  <li>Full conversation thread in Notes</li>
+                </ul>
               </div>
             </CardContent>
           </Card>

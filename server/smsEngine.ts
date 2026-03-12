@@ -337,6 +337,47 @@ export async function handleInboundSms(
             });
             console.log(`[SMS] Auto-labeled conversation ${conversation.id} as "${targetLabelName}"`);
 
+            // ─── Hot Lead: notify owner + push to Podio ───────────────────
+            if (isHotLead) {
+              // Owner notification
+              try {
+                const { notifyOwner } = await import("./_core/notification");
+                const contactName = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.phone;
+                const propAddr = contact.propertyAddress || contact.address || "Address not on file";
+                const convUrl = `https://lotpulsesms-zmwera2y.manus.space/messenger?conversationId=${conversation.id}`;
+                await notifyOwner({
+                  title: `\uD83D\uDD25 Hot Lead: ${contactName}`,
+                  content: `Contact: ${contactName}\nPhone: ${contact.phone}\nProperty: ${propAddr}\nLast message: "${Body.slice(0, 120)}"\n\nOpen conversation: ${convUrl}`,
+                });
+              } catch (notifErr) {
+                console.error("[SMS] Hot lead notification error:", notifErr);
+              }
+              // Push to Podio External Leads (if enabled for this user)
+              try {
+                const [userRow] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+                if ((userRow as any)?.podioEnabled) {
+                  const { pushLeadToPodio, buildConversationThread } = await import("./podioIntegration");
+                  const allMsgs = await db
+                    .select()
+                    .from(messages)
+                    .where(eq(messages.conversationId, conversation.id))
+                    .orderBy(messages.createdAt);
+                  const thread = buildConversationThread(allMsgs);
+                  await pushLeadToPodio({
+                    firstName: contact.firstName || "",
+                    lastName: contact.lastName || "",
+                    phone: contact.phone,
+                    propertyAddress: contact.propertyAddress || contact.address || "",
+                    temperature: "HOT",
+                    conversationThread: thread,
+                    webformUrl: (userRow as any)?.podioWebformUrl || undefined,
+                  });
+                }
+              } catch (podioErr) {
+                console.error("[SMS] Podio push error:", podioErr);
+              }
+            }
+
             // Queue follow-up message if this is a "Not Interested" label and the campaign has followUpEnabled
             if (isNotInterested) {
               try {

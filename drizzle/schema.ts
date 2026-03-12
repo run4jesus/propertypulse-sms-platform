@@ -23,6 +23,9 @@ export const users = mysqlTable("users", {
   // Twilio config
   twilioAccountSid: varchar("twilioAccountSid", { length: 64 }),
   twilioAuthToken: varchar("twilioAuthToken", { length: 64 }),
+  // Podio integration
+  podioEnabled: boolean("podioEnabled").default(false).notNull(),
+  podioWebformUrl: varchar("podioWebformUrl", { length: 512 }).default("https://podio.com/webforms/26979599/2064774"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

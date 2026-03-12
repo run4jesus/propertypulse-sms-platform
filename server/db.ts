@@ -98,6 +98,14 @@ export async function updateUserTwilio(userId: number, accountSid: string, authT
   await db.update(users).set({ twilioAccountSid: accountSid, twilioAuthToken: authToken }).where(eq(users.id, userId));
 }
 
+export async function updateUserPodio(userId: number, enabled: boolean, webformUrl?: string) {
+  const db = await getDb();
+  if (!db) return;
+  const updateData: Record<string, unknown> = { podioEnabled: enabled };
+  if (webformUrl !== undefined) updateData.podioWebformUrl = webformUrl;
+  await db.update(users).set(updateData as any).where(eq(users.id, userId));
+}
+
 // ─── Phone Numbers ────────────────────────────────────────────────────────────
 export async function getPhoneNumbers(userId: number) {
   const db = await getDb();
