@@ -146,6 +146,7 @@ export default function Campaigns() {
   const [followUpMessage, setFollowUpMessage] = useState("Thanks for your time! If anything changes on your end, feel free to reach out.");
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<number[]>([]);
+  const [sendMode, setSendMode] = useState<"automated" | "manual">("automated");
   const [, navigate] = useLocation();
   const [steps, setSteps] = useState<Step[]>([
     { stepNumber: 1, body: "", delayDays: 0, delayHours: 0 },
@@ -227,6 +228,8 @@ export default function Campaigns() {
     setFollowUpEnabled(false);
     setFollowUpDelayHours(24);
     setFollowUpMessage("Thanks for your time! If anything changes on your end, feel free to reach out.");
+    setSendMode("automated");
+    setSelectedTemplateIds([]);
     setSteps([{ stepNumber: 1, body: "", delayDays: 0, delayHours: 0 }]);
   };
 
@@ -259,6 +262,8 @@ export default function Campaigns() {
       scrubLitigators,
       scrubFederalDnc,
       scrubExistingContacts,
+      templateIds: selectedTemplateIds.length > 0 ? selectedTemplateIds : undefined,
+      sendMode,
     });
   };
 
@@ -378,8 +383,42 @@ export default function Campaigns() {
                   />
                 </div>
 
-                {/* Batch throttling */}
-                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+                {/* Send Mode toggle */}
+                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Send className="h-3.5 w-3.5 text-primary" />
+                    <Label className="text-xs font-semibold">Send Mode</Label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSendMode("automated")}
+                      className={`flex flex-col items-start gap-0.5 rounded-md border p-2.5 text-left transition-colors ${
+                        sendMode === "automated"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      <span className="text-xs font-semibold">Automated</span>
+                      <span className="text-[10px] text-muted-foreground leading-tight">System sends on schedule, rotates templates automatically</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSendMode("manual")}
+                      className={`flex flex-col items-start gap-0.5 rounded-md border p-2.5 text-left transition-colors ${
+                        sendMode === "manual"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      <span className="text-xs font-semibold">Manual Queue</span>
+                      <span className="text-[10px] text-muted-foreground leading-tight">Review each lead and send with Spacebar</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Batch throttling — only shown for automated mode */}
+                {sendMode === "automated" && <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
                   <div className="flex items-center gap-2">
                     <Zap className="h-3.5 w-3.5 text-primary" />
                     <Label className="text-xs font-semibold">Send Rate / Batch Control</Label>
@@ -437,7 +476,7 @@ export default function Campaigns() {
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">Campaign pauses automatically outside this window.</p>
                   </div>
-                </div>
+                </div>}
 
                 {/* Opt-out footer toggle */}
                 <div className="flex items-center justify-between rounded-lg border border-border p-3">
@@ -866,14 +905,27 @@ export default function Campaigns() {
                     Resume
                   </Button>
                 )}
-                <Button
-                  size="sm"
-                  className="bg-primary hover:bg-primary/90 gap-1.5"
-                  onClick={() => navigate(`/campaigns/${selectedId}/send-queue`)}
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  Start Send Queue
-                </Button>
+{(selectedCampaign as any).sendMode === "manual" ? (
+                  <Button
+                    size="sm"
+                    className="bg-primary hover:bg-primary/90 gap-1.5"
+                    onClick={() => navigate(`/campaigns/${selectedId}/send-queue`)}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    Start Send Queue
+                  </Button>
+                ) : (
+                  selectedCampaign.status === "draft" || selectedCampaign.status === "scheduled" ? (
+                    <Button
+                      size="sm"
+                      className="bg-primary hover:bg-primary/90 gap-1.5"
+                      onClick={() => updateCampaign.mutate({ id: selectedId!, status: "active" })}
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      Start Sending
+                    </Button>
+                  ) : null
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -885,8 +937,8 @@ export default function Campaigns() {
               </div>
             </div>
 
-            {/* Batch Settings */}
-            <div className="rounded-lg border border-border bg-muted/30 p-4">
+            {/* Batch Settings — only for automated campaigns */}
+            {(selectedCampaign as any).sendMode !== "manual" && <div className="rounded-lg border border-border bg-muted/30 p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Zap className="h-4 w-4 text-primary" />
@@ -940,7 +992,7 @@ export default function Campaigns() {
                   Scheduled: {format(new Date(selectedCampaign.scheduledAt), "MMM d, yyyy h:mm a")}
                 </p>
               )}
-            </div>
+            </div>}
 
             {/* Scrub Filters (detail view) */}
             <div className="rounded-lg border border-border bg-muted/30 p-4">

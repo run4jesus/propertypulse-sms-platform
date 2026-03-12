@@ -206,6 +206,8 @@ export const campaigns = mysqlTable("campaigns", {
   phoneNumberIds: json("phonenumberids").$type<number[]>(),
   // Manual send queue — up to 8 template IDs to rotate through
   templateIds: json("templateids").$type<number[]>(),
+  // Send mode: 'automated' = batch engine sends automatically; 'manual' = user reviews each lead in Send Queue
+  sendMode: varchar("sendMode", { length: 20 }).notNull().default("automated"),
   // Not-interested follow-up automation
   followUpEnabled: boolean("followupenabled").default(false).notNull(),
   followUpDelayHours: int("followupdelayhours").default(24).notNull(),

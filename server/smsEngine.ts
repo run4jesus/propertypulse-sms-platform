@@ -679,27 +679,37 @@ export async function processCampaignBatches() {
           if (existingContact) continue;
         }
 
-        // Get the campaign message body (step 1 for standard campaigns)
-        // For drip campaigns this would use the step body — simplified here to use campaign name as placeholder
-        // In production, the campaign step body is used
-        const campaignStepsResult = await db
-          .select()
-          .from(campaigns)
-          .where(eq(campaigns.id, campaign.id))
-          .limit(1);
+        // Skip manual-mode campaigns — those are handled by the Send Queue UI, not the batch engine
+        if ((campaign as any).sendMode === "manual") continue;
 
-        // Get step 1 body from campaign_steps table
-        const { campaignSteps: steps } = await import("../drizzle/schema");
-        const [step1] = await db
-          .select()
-          .from(steps)
-          .where(and(eq(steps.campaignId, campaign.id), eq(steps.stepNumber, 1)))
-          .limit(1);
-
-        if (!step1) continue;
-
-        // Resolve merge fields
-        let messageBody = resolveMergeFields(step1.body, contact);
+        // Get the campaign message body — rotate through templateIds if set, otherwise use step 1
+        const tplIds: number[] = Array.isArray((campaign as any).templateIds) && (campaign as any).templateIds.length > 0
+          ? (campaign as any).templateIds
+          : [];
+        let messageBody: string;
+        if (tplIds.length > 0) {
+          // Rotate through selected templates by absolute contact index
+          const tplIndex = ((campaign.nextBatchOffset ?? 0) + sentCount) % tplIds.length;
+          const tplId = tplIds[tplIndex];
+          const { campaignTemplates: tplTable } = await import("../drizzle/schema");
+          const [tpl] = await db
+            .select()
+            .from(tplTable)
+            .where(eq(tplTable.id, tplId))
+            .limit(1);
+          if (!tpl) continue;
+          messageBody = resolveMergeFields(tpl.body, contact);
+        } else {
+          // Fall back to step 1 body
+          const { campaignSteps: steps } = await import("../drizzle/schema");
+          const [step1] = await db
+            .select()
+            .from(steps)
+            .where(and(eq(steps.campaignId, campaign.id), eq(steps.stepNumber, 1)))
+            .limit(1);
+          if (!step1) continue;
+          messageBody = resolveMergeFields(step1.body, contact);
+        }
 
         // Append opt-out footer if enabled
         if (campaign.optOutFooter) {

@@ -368,3 +368,9 @@
 - [ ] Send Queue: progress bar showing X of Y sent
 - [ ] Send Queue: template rotation indicator (e.g. "Template 3 of 8")
 - [ ] Send Queue: accessible from campaign detail page via "Start Sending" button
+
+## Send Mode Toggle (Automated vs Manual Queue)
+- [ ] Schema: add sendMode column to campaigns table (enum: 'automated' | 'manual', default 'automated')
+- [ ] Campaign create/update UI: Send Mode radio toggle — Automated shows batch settings, Manual hides them
+- [ ] Automated batch engine: rotate through templateIds when sending instead of single messageBody
+- [ ] Campaign detail: show "Start Send Queue" button only when sendMode = 'manual'; show Start/Resume for automated
