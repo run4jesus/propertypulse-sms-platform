@@ -562,6 +562,56 @@ export const appRouter = router({
       .input(z.object({ conversationId: z.number(), labelId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         await assignLabelToConversation(input.conversationId, input.labelId);
+
+        // Trigger Podio push + owner notification when Hot Lead or Warm Lead is manually assigned
+        try {
+          const db = await getDb();
+          if (db) {
+            const { labels, conversations: convsTable, contacts: contactsTable, messages: messagesTable, users: usersTable } = await import("../drizzle/schema");
+            const { eq, and } = await import("drizzle-orm");
+            const [label] = await db.select().from(labels).where(eq(labels.id, input.labelId)).limit(1);
+            const isHotLead = label?.name === "Hot Lead";
+            const isWarmLead = label?.name === "Warm Lead";
+            if (isHotLead || isWarmLead) {
+              const [conv] = await db.select().from(convsTable).where(eq(convsTable.id, input.conversationId)).limit(1);
+              if (conv) {
+                const [contact] = await db.select().from(contactsTable).where(eq(contactsTable.id, conv.contactId)).limit(1);
+                const [userRow] = await db.select().from(usersTable).where(eq(usersTable.id, conv.userId)).limit(1);
+                if (contact) {
+                  const contactName = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.phone;
+                  const propAddr = (contact as any).propertyAddress || (contact as any).address || "Address not on file";
+                  const convUrl = `https://lotpulsesms-zmwera2y.manus.space/messenger?conversationId=${conv.id}`;
+                  // Owner notification
+                  try {
+                    const { notifyOwner } = await import("./_core/notification");
+                    await notifyOwner({
+                      title: `${isHotLead ? "HOT Lead" : "Warm Lead"} (manual): ${contactName}`,
+                      content: `Contact: ${contactName}\nPhone: ${contact.phone}\nProperty: ${propAddr}\n\nOpen conversation: ${convUrl}`,
+                    });
+                  } catch (_e) { /* ignore */ }
+                  // Podio push
+                  if ((userRow as any)?.podioEnabled) {
+                    try {
+                      const { pushLeadToPodio, buildConversationThread } = await import("./podioIntegration");
+                      const allMsgs = await db.select().from(messagesTable).where(eq(messagesTable.conversationId, conv.id)).orderBy(messagesTable.createdAt);
+                      const thread = buildConversationThread(allMsgs);
+                      await pushLeadToPodio({
+                        firstName: contact.firstName || "",
+                        lastName: contact.lastName || "",
+                        phone: contact.phone,
+                        propertyAddress: propAddr,
+                        temperature: isHotLead ? "HOT" : "Warm",
+                        conversationThread: thread,
+                        webformUrl: (userRow as any)?.podioWebformUrl || undefined,
+                      });
+                    } catch (_e) { /* ignore */ }
+                  }
+                }
+              }
+            }
+          }
+        } catch (_e) { /* non-critical, don't break the label assignment */ }
+
         return { success: true };
       }),
 

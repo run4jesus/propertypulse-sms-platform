@@ -397,3 +397,7 @@
 - [ ] Wire /api/sms/status callback to update message.deliveryStatus in DB (delivered/undelivered/failed)
 - [ ] Add deliveryRate % calculation to campaign stats query
 - [ ] Flag numbers with <80% delivery rate in Phone Numbers page
+
+## Warm Lead Podio Push
+- [x] Trigger pushLeadToPodio with temperature="Warm" when AI auto-labels Warm Lead in smsEngine (was already wired)
+- [x] Trigger pushLeadToPodio with temperature="Warm" when user manually assigns Warm Lead label in conversations.assignLabel
