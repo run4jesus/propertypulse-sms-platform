@@ -54,18 +54,18 @@ export async function pushLeadToPodio(payload: PodioLeadPayload): Promise<{ succ
   body.set("fields[title]", payload.firstName || "");
   body.set("fields[last-name]", payload.lastName || "");
 
-  // Phone
-  body.set("fields[phone-number][][type]", "Mobile");
+  // Phone — Podio accepts 'mobile' lowercase
+  body.set("fields[phone-number][][type]", "mobile");
   body.set("fields[phone-number][][value]", payload.phone || "");
 
   // Property address
   body.set("fields[property-address-map]", payload.propertyAddress || "");
 
-  // Lead source — "SMS Callbacks" is the closest option in the dropdown
-  body.set("fields[lead-source]", "SMS Callbacks");
+  // Lead source — Podio uses numeric IDs; 11 = "SMS Callbacks"
+  body.set("fields[lead-source]", "11");
 
-  // Temperature — HOT or Warm
-  body.set("fields[temperature]", payload.temperature);
+  // Temperature — Podio numeric IDs: 1=HOT, 2=Warm, 3=Cold
+  body.set("fields[temperature]", payload.temperature === "HOT" ? "1" : "2");
 
   // Conversation thread in the Details / Notes field
   body.set(
