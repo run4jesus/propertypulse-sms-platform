@@ -319,3 +319,7 @@
 ## Unread Filter Pill in Messenger
 - [x] Backend: support status="unread" filter in getConversations (where unreadCount > 0)
 - [x] Frontend: add "Unread" pill to STATUS_FILTERS array in Messenger
+
+## Auto-configure Webhooks on Number Purchase
+- [x] After purchasing a number via TextGrid API, immediately call TextGrid UpdateNumber API to set smsUrl (POST) and statuscallBackUrl (POST)
+- [x] No manual webhook setup needed for any future numbers purchased through LotPulse

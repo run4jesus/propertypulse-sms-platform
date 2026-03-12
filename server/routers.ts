@@ -205,10 +205,12 @@ export const appRouter = router({
         const body = new URLSearchParams();
         body.set("PhoneNumber", input.phoneNumber);
         if (input.friendlyName) body.set("FriendlyName", input.friendlyName);
-        // Set SMS webhook to our inbound handler
-        const webhookBase = process.env.WEBHOOK_BASE_URL || `https://api.textgrid.com`;
-        body.set("SmsUrl", input.webhookUrl || `${process.env.VITE_FRONTEND_FORGE_API_URL || webhookBase}/api/webhooks/sms/inbound`);
+        // Always set webhooks to LotPulse so no manual setup is needed
+        const lotpulseBase = "https://lotpulsesms-zmwera2y.manus.space";
+        body.set("SmsUrl", input.webhookUrl || `${lotpulseBase}/api/sms/inbound`);
         body.set("SmsMethod", "POST");
+        body.set("StatusCallback", `${lotpulseBase}/api/sms/status`);
+        body.set("StatusCallbackMethod", "POST");
         const url = `https://api.textgrid.com/2010-04-01/Accounts/${user.twilioAccountSid}/IncomingPhoneNumbers.json`;
         const resp = await fetch(url, {
           method: "POST",
