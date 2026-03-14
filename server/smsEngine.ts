@@ -29,7 +29,9 @@ const OPT_OUT_KEYWORDS = ["stop", "unsubscribe", "quit", "cancel", "end", "stopa
 const OPT_IN_KEYWORDS = ["start", "unstop"];
 
 // ─── LLM-based intent classification ────────────────────────────────────────
-// Returns: 'hot_lead' | 'warm_lead' | 'not_interested' | 'neutral'
+// Framework: intro → yes/no → price extraction → warm lead handoff
+// Hot Lead is DISABLED — all qualified leads go to Warm Lead only.
+// Returns: 'warm_lead' | 'not_interested' | 'neutral'
 async function classifyInboundIntent(
   transcript: string,
   latestMessage: string
@@ -39,16 +41,24 @@ async function classifyInboundIntent(
       messages: [
         {
           role: "system",
-          content: `You are a real estate wholesaling assistant. Classify the seller's latest reply intent.
+          content: `You are a real estate wholesaling lead classifier. Analyze the seller's latest reply and classify their intent.
+
+Conversation framework context:
+- The agent texted the seller asking if they'd consider selling their house.
+- If the seller says YES or is open to it, the agent asks what price they have in mind.
+- If the seller gives a price OR says "make me an offer" / refuses to give a price but is still open, they are a WARM LEAD.
+- If the seller says NO, not interested, wrong number, or any clear decline, they are NOT INTERESTED.
+- If the seller asks a question, is unclear, or hasn't committed either way, classify as NEUTRAL.
 
 Return ONLY a JSON object with one field: "intent"
 Allowed values:
-- "hot_lead": seller is clearly motivated and wants to sell (e.g. "yes interested", "call me", "how much", "make an offer", "I want to sell")
-- "warm_lead": seller is open but not committed (e.g. "maybe", "tell me more", "what would you offer", "I might be interested")
-- "not_interested": seller explicitly declines (e.g. "not interested", "no thanks", "don't contact me", "stop texting")
-- "neutral": question, clarification, or unclear intent
+- "warm_lead": seller gave a price, asked for an offer, or is open to selling (even if they haven't given a price yet)
+- "not_interested": seller explicitly declines, says no, wrong number, stop texting, or any clear rejection
+- "neutral": seller asked a question, is unclear, or hasn't committed either way
 
-Only classify as hot_lead or not_interested when very confident. When in doubt, use neutral.`,
+NEVER return "hot_lead" — all qualified leads are warm_lead.
+When in doubt between warm_lead and neutral, use neutral.
+When in doubt between not_interested and neutral, use not_interested only if the decline is explicit and clear.`,
         },
         {
           role: "user",
@@ -63,7 +73,7 @@ Only classify as hot_lead or not_interested when very confident. When in doubt, 
           schema: {
             type: "object",
             properties: {
-              intent: { type: "string", enum: ["hot_lead", "warm_lead", "not_interested", "neutral"] },
+              intent: { type: "string", enum: ["warm_lead", "not_interested", "neutral"] },
             },
             required: ["intent"],
             additionalProperties: false,
@@ -74,7 +84,8 @@ Only classify as hot_lead or not_interested when very confident. When in doubt, 
     const content = result.choices[0]?.message?.content;
     if (typeof content === "string") {
       const parsed = JSON.parse(content) as { intent: string };
-      if (["hot_lead", "warm_lead", "not_interested", "neutral"].includes(parsed.intent)) {
+      if (["warm_lead", "not_interested", "neutral"].includes(parsed.intent)) {
+        // hot_lead is disabled — map to warm_lead if ever returned
         return parsed.intent as "hot_lead" | "warm_lead" | "not_interested" | "neutral";
       }
     }
@@ -519,11 +530,45 @@ export async function handleInboundSms(
         messages: [
           {
             role: "system",
-            content: `You are a real estate wholesaler texting a motivated seller about their vacant lot or property. Be conversational, empathetic, and professional. Keep responses short (1-3 sentences). Your goal is to understand their situation and make an offer. Never mention you are an AI.`,
+            content: `You are texting a homeowner on behalf of a real estate investor who buys houses.
+
+Your ONLY job is to follow this exact conversation playbook — nothing more:
+
+STAGE 1 — If the seller responds to the opening text:
+  - Acknowledge their reply warmly and briefly
+  - Ask if they would consider selling their house (if not already clear from their reply)
+
+STAGE 2 — If they say NO or are not interested:
+  - Reply: "No worries at all, thanks for your time! Feel free to reach out if anything ever changes."
+  - Do NOT continue the conversation after this.
+
+STAGE 3 — If they say YES or are open to selling:
+  - Ask: "Ok great, what price did you have in mind for the property?"
+
+STAGE 4 — If they give a price:
+  - Reply: "Ok great, my partner usually handles the pricing side — I'll have him give you a call shortly."
+  - Do NOT negotiate, counter-offer, or discuss numbers.
+
+STAGE 5 — If they say "make me an offer" or refuse to give a price but are still open:
+  - Reply: "Totally understand, my partner usually handles the pricing — I'll have him reach out to you shortly."
+
+STAGE 6 — If they ask "are you a real person?" or "is this a bot?":
+  - Reply naturally and deflect: "Haha yeah, just texting from my phone. So what price were you thinking?"
+  - Redirect back to the conversation.
+
+CRITICAL RULES — never break these:
+- NEVER mention a company name, your name, or your partner's name
+- NEVER make or discuss a specific offer price
+- NEVER say you are an AI or a bot
+- NEVER use corporate language like "I understand your concern" or "Thank you for reaching out"
+- Keep every reply SHORT — 1 to 2 sentences maximum
+- Sound like a real person texting from their phone — casual, direct, friendly
+- Do NOT use exclamation marks excessively
+- Focus on houses only — if they mention land or commercial property, still follow the same playbook`,
           },
           {
             role: "user",
-            content: `Generate the next best reply to this conversation:\n\n${transcript}`,
+            content: `Generate the next reply in this conversation:\n\n${transcript}`,
           },
         ],
       });

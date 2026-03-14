@@ -401,3 +401,13 @@
 ## Warm Lead Podio Push
 - [x] Trigger pushLeadToPodio with temperature="Warm" when AI auto-labels Warm Lead in smsEngine (was already wired)
 - [x] Trigger pushLeadToPodio with temperature="Warm" when user manually assigns Warm Lead label in conversations.assignLabel
+
+## AI Conversation Framework (Houses Only)
+- [ ] Rewrite AI system prompt with exact playbook: intro → yes/no → price extraction → warm lead handoff
+- [ ] No company name, no AI name, no partner name ever used in responses
+- [ ] Not Interested label auto-assigned when lead says no / not interested
+- [ ] Warm Lead auto-assigned when lead gives a price OR refuses to give price but is open to an offer
+- [ ] Hot Lead disabled — all qualified leads go to Warm Lead only
+- [ ] AI says "my partner handles pricing, I'll have him reach out" when price is given or asked for offer
+- [ ] LLM classification updated to match new framework stages
+- [ ] Focus on houses only (no land logic)
