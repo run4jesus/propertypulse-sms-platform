@@ -69,6 +69,14 @@ function getDisposition(value: string | null | undefined) {
   return DISPOSITIONS.find((d) => d.value === value) ?? null;
 }
 
+// ─── AI stage badge config ───────────────────────────────────────────────────
+const AI_STAGE_BADGES: Record<string, { label: string; className: string }> = {
+  intro:          { label: "AI: Intro",        className: "bg-blue-50 text-blue-600 border border-blue-200" },
+  price_ask:      { label: "AI: Price Asked",  className: "bg-amber-50 text-amber-600 border border-amber-200" },
+  handoff:        { label: "AI: Handed Off",   className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+  not_interested: { label: "AI: Not Interest", className: "bg-slate-100 text-slate-500 border border-slate-200" },
+};
+
 function getScoreColor(score: number) {
   if (score >= 7) return "text-emerald-600 bg-emerald-50";
   if (score >= 4) return "text-amber-600 bg-amber-50";
@@ -372,6 +380,15 @@ export default function Messenger() {
                       {cv.aiEnabled && (
                         <Bot className="h-3 w-3 text-primary" />
                       )}
+                      {cv.aiEnabled && (() => {
+                        const stage = (cv as any).aiStage as string | undefined;
+                        const badge = stage && stage !== "intro" ? AI_STAGE_BADGES[stage] : null;
+                        return badge ? (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${badge.className}`}>
+                            {badge.label}
+                          </span>
+                        ) : null;
+                      })()}
                       {cv.isStarred && (
                         <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
                       )}
