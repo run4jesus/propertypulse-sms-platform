@@ -468,7 +468,7 @@ export default function Messenger() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* AI per-conversation toggle */}
+                  {/* AI per-conversation toggle + stage badge */}
                   <div className="flex items-center gap-2 border border-border rounded-lg px-3 py-1.5">
                     <Bot className={`h-3.5 w-3.5 ${conv?.aiEnabled ? "text-primary" : "text-muted-foreground"}`} />
                     <span className="text-xs font-medium">AI</span>
@@ -478,6 +478,33 @@ export default function Messenger() {
                       className="scale-75"
                     />
                   </div>
+                  {/* AI stage badge — always visible when AI is on */}
+                  {conv?.aiEnabled && (() => {
+                    const stage = (conv as any).aiStage as string | undefined ?? "intro";
+                    const badge = AI_STAGE_BADGES[stage];
+                    if (!badge) return null;
+                    const stageLabels: Record<string, string> = {
+                      intro: "AI: Intro",
+                      price_ask: "AI: Price Asked",
+                      handoff: "AI: Handed Off",
+                      not_interested: "AI: Not Interested",
+                    };
+                    return (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className={`text-xs px-2 py-1 rounded-lg font-medium cursor-default ${badge.className}`}>
+                            {stageLabels[stage] ?? stage}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {stage === "intro" && "AI is waiting for seller's first reply"}
+                          {stage === "price_ask" && "AI asked for price — waiting on seller's number"}
+                          {stage === "handoff" && "Seller gave a price — AI handed off to your partner"}
+                          {stage === "not_interested" && "Seller declined — AI stopped replying"}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })()}
 
                   <Tooltip>
                     <TooltipTrigger asChild>
