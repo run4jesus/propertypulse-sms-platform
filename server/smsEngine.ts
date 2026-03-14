@@ -513,6 +513,17 @@ export async function handleInboundSms(
     user.twilioAuthToken
   ) {
     try {
+      // ─── Stage-aware playbook ────────────────────────────────────────────────
+      // Stages: intro → price_ask → handoff | not_interested
+      // Once we reach 'handoff' or 'not_interested', the AI stops replying.
+      const currentStage = (conversation as any).aiStage ?? "intro";
+
+      // If already handed off or marked not-interested, do NOT send another reply
+      if (currentStage === "handoff" || currentStage === "not_interested") {
+        console.log(`[SMS] AI skipping reply — conversation ${conversation.id} is in stage "${currentStage}"`);
+        return;
+      }
+
       // Get recent messages for context
       const recentMsgs = await db
         .select()
@@ -526,55 +537,81 @@ export async function handleInboundSms(
         .map((m) => `${m.direction === "outbound" ? "Agent" : "Seller"}: ${m.body}`)
         .join("\n");
 
+      // Build a stage-aware system prompt so the LLM knows exactly where we are
+      const stageContext = currentStage === "price_ask"
+        ? `CURRENT STAGE: price_ask — you already asked the seller what price they have in mind. Now:
+- If they give a price (any number or range), reply with the handoff message and set next_stage to "handoff".
+- If they say "make me an offer" or refuse to give a price but are still open, reply with the offer-refusal handoff and set next_stage to "handoff".
+- If they say NO or decline, reply with the not-interested goodbye and set next_stage to "not_interested".
+- If they ask a clarifying question or are still unclear, answer briefly and keep next_stage as "price_ask".
+- If they ask if you are a bot/real person, deflect naturally ("Haha yeah just texting") and redirect back to price, keep next_stage as "price_ask".`
+        : `CURRENT STAGE: intro — the seller just replied to your opening text. Now:
+- If they say YES or are open to selling, ask what price they have in mind and set next_stage to "price_ask".
+- If they say NO or decline, reply with the not-interested goodbye and set next_stage to "not_interested".
+- If they ask a clarifying question or are unclear, answer briefly and keep next_stage as "intro".
+- If they ask if you are a bot/real person, deflect naturally and redirect back to the question, keep next_stage as "intro".`;
+
       const aiResponse = await invokeLLM({
         messages: [
           {
             role: "system",
             content: `You are texting a homeowner on behalf of a real estate investor who buys houses.
 
-Your ONLY job is to follow this exact conversation playbook — nothing more:
+${stageContext}
 
-STAGE 1 — If the seller responds to the opening text:
-  - Acknowledge their reply warmly and briefly
-  - Ask if they would consider selling their house (if not already clear from their reply)
-
-STAGE 2 — If they say NO or are not interested:
-  - Reply: "No worries at all, thanks for your time! Feel free to reach out if anything ever changes."
-  - Do NOT continue the conversation after this.
-
-STAGE 3 — If they say YES or are open to selling:
-  - Ask: "Ok great, what price did you have in mind for the property?"
-
-STAGE 4 — If they give a price:
-  - Reply: "Ok great, my partner usually handles the pricing side — I'll have him give you a call shortly."
-  - Do NOT negotiate, counter-offer, or discuss numbers.
-
-STAGE 5 — If they say "make me an offer" or refuse to give a price but are still open:
-  - Reply: "Totally understand, my partner usually handles the pricing — I'll have him reach out to you shortly."
-
-STAGE 6 — If they ask "are you a real person?" or "is this a bot?":
-  - Reply naturally and deflect: "Haha yeah, just texting from my phone. So what price were you thinking?"
-  - Redirect back to the conversation.
+Hardcoded reply templates (use these EXACTLY when applicable):
+- Not interested goodbye: "No worries at all, thanks for your time. Feel free to reach out if anything changes."
+- Ask for price: "Ok great, what price did you have in mind for the property?"
+- Handoff after price given: "Ok great, my partner usually handles the pricing side — I'll have him give you a call shortly."
+- Handoff after make-offer: "Totally understand, my partner usually handles the pricing — I'll have him reach out to you shortly."
 
 CRITICAL RULES — never break these:
 - NEVER mention a company name, your name, or your partner's name
 - NEVER make or discuss a specific offer price
 - NEVER say you are an AI or a bot
-- NEVER use corporate language like "I understand your concern" or "Thank you for reaching out"
+- NEVER use corporate language
 - Keep every reply SHORT — 1 to 2 sentences maximum
-- Sound like a real person texting from their phone — casual, direct, friendly
-- Do NOT use exclamation marks excessively
-- Focus on houses only — if they mention land or commercial property, still follow the same playbook`,
+- Sound like a real person texting from their phone — casual, direct, friendly`,
           },
           {
             role: "user",
-            content: `Generate the next reply in this conversation:\n\n${transcript}`,
+            content: `Conversation so far:\n${transcript}\n\nLatest seller message: "${Body}"\n\nReply with a JSON object containing:\n- "reply": the exact text message to send\n- "next_stage": one of "intro", "price_ask", "handoff", "not_interested"`,
           },
         ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "ai_reply",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                reply: { type: "string", description: "The SMS reply to send" },
+                next_stage: { type: "string", enum: ["intro", "price_ask", "handoff", "not_interested"] },
+              },
+              required: ["reply", "next_stage"],
+              additionalProperties: false,
+            },
+          },
+        },
       });
 
-      const replyBody = aiResponse.choices[0]?.message?.content;
-      if (replyBody && typeof replyBody === "string") {
+      const rawContent = aiResponse.choices[0]?.message?.content;
+      let replyBody: string | null = null;
+      let nextStage: string = currentStage;
+
+      if (rawContent && typeof rawContent === "string") {
+        try {
+          const parsed = JSON.parse(rawContent) as { reply: string; next_stage: string };
+          replyBody = parsed.reply?.trim() ?? null;
+          nextStage = parsed.next_stage ?? currentStage;
+        } catch (_parseErr) {
+          // Fallback: treat raw content as the reply, keep current stage
+          replyBody = rawContent.trim();
+        }
+      }
+
+      if (replyBody) {
         const fromPhone = await db
           .select()
           .from(phoneNumbers)
@@ -600,14 +637,18 @@ CRITICAL RULES — never break these:
             isAiGenerated: true,
           });
 
+          // Advance the stage in the database
           await db
             .update(conversations)
             .set({
               lastMessageAt: new Date(),
               lastMessagePreview: replyBody.slice(0, 200),
               status: "active",
-            })
+              aiStage: nextStage as "intro" | "price_ask" | "handoff" | "not_interested",
+            } as any)
             .where(eq(conversations.id, conversation.id));
+
+          console.log(`[SMS] AI reply sent for conversation ${conversation.id} — stage: ${currentStage} → ${nextStage}`);
         }
       }
     } catch (err) {

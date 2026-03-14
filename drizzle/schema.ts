@@ -139,6 +139,13 @@ export const conversations = mysqlTable("conversations", {
   unreadCount: int("unreadCount").default(0).notNull(),
   isStarred: boolean("isStarred").default(false).notNull(),
   status: mysqlEnum("status", ["active", "awaiting_reply", "unreplied", "opted_out", "closed"]).default("active").notNull(),
+  // AI conversation stage tracker
+  // intro: opening text sent, waiting for seller reply
+  // price_ask: seller said yes, AI asked for price
+  // handoff: seller gave price or asked for offer, AI sent handoff message
+  // not_interested: seller declined
+  aiStage: mysqlEnum("aiStage", ["intro", "price_ask", "handoff", "not_interested"]).default("intro"),
+
   // Lead disposition — manually set by user
   disposition: mysqlEnum("disposition", [
     "interested",
