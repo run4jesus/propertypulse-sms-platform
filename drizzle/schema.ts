@@ -443,3 +443,14 @@ export const followUpQueue = mysqlTable("follow_up_queue", {
 });
 
 export type FollowUpQueue = typeof followUpQueue.$inferSelect;
+
+// ─── Litigator Numbers ────────────────────────────────────────────────────────
+// Manually uploaded litigator phone numbers — always blocked from all campaigns
+export const litigatorNumbers = mysqlTable("litigator_numbers", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  source: varchar("source", { length: 100 }).default("manual_upload").notNull(),
+  uploadedAt: timestamp("uploadedAt").defaultNow().notNull(),
+});
+export type LitigatorNumber = typeof litigatorNumbers.$inferSelect;

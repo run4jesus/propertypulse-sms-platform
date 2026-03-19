@@ -17,6 +17,7 @@ import {
   contactManagement,
   conversations,
   keywordCampaigns,
+  litigatorNumbers,
   messages,
   phoneNumbers,
   users,
@@ -791,8 +792,16 @@ export async function processCampaignBatches() {
         // Always skip opted-out contacts (hard block, not a user toggle)
         if (contact.optedOut) continue;
 
-        // Scrub TCPA litigators — only if campaign has scrubLitigators enabled
-        if (campaign.scrubLitigators && (contact as any).litigatorFlag) continue;
+        // Scrub TCPA litigators — check contact litigatorFlag AND manually uploaded litigator_numbers table
+        if (campaign.scrubLitigators) {
+          if ((contact as any).litigatorFlag) continue;
+          const [manualLitigator] = await db
+            .select({ id: litigatorNumbers.id })
+            .from(litigatorNumbers)
+            .where(and(eq(litigatorNumbers.userId, campaign.userId), eq(litigatorNumbers.phone, contact.phone)))
+            .limit(1);
+          if (manualLitigator) continue;
+        }
 
         // Scrub federal/national DNC — only if campaign has scrubFederalDnc enabled
         if (campaign.scrubFederalDnc && (contact as any).dncStatus === "federal_dnc") continue;

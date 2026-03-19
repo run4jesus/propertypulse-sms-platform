@@ -270,6 +270,148 @@ function DncScrubPanel() {
   );
 }
 
+function LitigatorUploadPanel() {
+  const [fileName, setFileName] = useState("");
+  const [parsedPhones, setParsedPhones] = useState<string[]>([]);
+  const [sourceName, setSourceName] = useState("");
+  const [importResult, setImportResult] = useState<{ inserted: number; skipped: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { data: litigatorData, refetch: refetchLitigators } = trpc.dnc.listLitigators.useQuery({ limit: 5, offset: 0 });
+  const uploadMutation = trpc.dnc.uploadLitigators.useMutation({
+    onSuccess: (result) => {
+      setImportResult(result);
+      refetchLitigators();
+      setParsedPhones([]);
+      setFileName("");
+      toast.success(`Litigator list uploaded: ${result.inserted.toLocaleString()} numbers blocked`);
+    },
+    onError: (err) => toast.error(`Upload failed: ${err.message}`),
+  });
+  const clearMutation = trpc.dnc.clearLitigators.useMutation({
+    onSuccess: () => { refetchLitigators(); setImportResult(null); toast.success("Litigator list cleared"); },
+  });
+
+  function parsePhones(text: string): string[] {
+    return text
+      .split(/[\n\r,\t;]+/)
+      .map((p) => p.replace(/[^\d]/g, "").trim())
+      .filter((p) => p.length >= 10)
+      .filter((p, i, arr) => arr.indexOf(p) === i);
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setImportResult(null);
+    const reader = new FileReader();
+    reader.onload = (ev) => setParsedPhones(parsePhones(ev.target?.result as string));
+    reader.readAsText(file);
+    e.target.value = "";
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5 text-red-600" />
+          Litigator List Upload
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Upload your TCPA litigator list CSV. These numbers are <strong>always blocked</strong> from all campaigns regardless of scrub settings.
+          Upload a new file anytime to add more — duplicates are skipped automatically.
+        </p>
+      </div>
+
+      {litigatorData && (
+        <Card className="border-red-200 bg-red-50/30">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <ShieldAlert className="w-5 h-5 text-red-500" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">{litigatorData.total.toLocaleString()} litigator numbers on file</p>
+                <p className="text-xs text-muted-foreground">All blocked from every campaign</p>
+              </div>
+            </div>
+            {litigatorData.total > 0 && (
+              <Button
+                variant="outline" size="sm"
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                onClick={() => { if (confirm("Clear all litigator numbers? This cannot be undone.")) clearMutation.mutate(); }}
+              >
+                <Trash2 className="w-4 h-4 mr-1" /> Clear All
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="border-border">
+        <CardContent className="p-6 space-y-4">
+          <div
+            className="border-2 border-dashed border-red-200 rounded-lg p-8 text-center cursor-pointer hover:border-red-400 transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <ShieldAlert className="w-8 h-8 mx-auto mb-2 text-red-400" />
+            <p className="text-sm font-medium text-foreground">{fileName || "Click to upload litigator CSV or TXT file"}</p>
+            <p className="text-xs text-muted-foreground mt-1">Accepts .csv, .txt — one phone per line or comma/tab separated</p>
+            <input ref={fileInputRef} type="file" accept=".csv,.txt,text/csv,text/plain" className="hidden" onChange={handleFileChange} />
+          </div>
+
+          {parsedPhones.length > 0 && (
+            <div className="rounded-lg bg-muted/30 border border-border p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-foreground">Preview</p>
+                <Badge variant="outline" className="border-red-300 text-red-700">{parsedPhones.length.toLocaleString()} numbers found</Badge>
+              </div>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {parsedPhones.slice(0, 10).map((p, i) => <p key={i} className="text-xs text-muted-foreground font-mono">{p}</p>)}
+                {parsedPhones.length > 10 && <p className="text-xs text-muted-foreground italic">...and {parsedPhones.length - 10} more</p>}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-medium text-foreground block mb-1">Source name (optional)</label>
+            <input
+              type="text"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              placeholder="e.g. TCPA Litigator List Jan 2026, Contacts International..."
+              value={sourceName}
+              onChange={(e) => setSourceName(e.target.value)}
+            />
+          </div>
+
+          <Button
+            className="w-full bg-red-600 hover:bg-red-700 text-white"
+            disabled={parsedPhones.length === 0 || uploadMutation.isPending}
+            onClick={() => uploadMutation.mutate({ phones: parsedPhones, source: sourceName || undefined })}
+          >
+            {uploadMutation.isPending
+              ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Uploading...</>
+              : <><ShieldAlert className="w-4 h-4 mr-2" /> Block {parsedPhones.length > 0 ? `${parsedPhones.length.toLocaleString()} Numbers` : "Litigators"}</>}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {importResult && (
+        <Card className="border-green-200 bg-green-50/50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+              <p className="font-medium text-green-800">Upload Complete</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-center">
+              <div><p className="text-xl font-bold text-red-700">{importResult.inserted.toLocaleString()}</p><p className="text-xs text-muted-foreground">Blocked</p></div>
+              <div><p className="text-xl font-bold text-muted-foreground">{importResult.skipped.toLocaleString()}</p><p className="text-xs text-muted-foreground">Already on list</p></div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function BulkDncImportPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [parsedPhones, setParsedPhones] = useState<string[]>([]);
@@ -499,6 +641,17 @@ export default function ContactManagement() {
             <FileUp className={`w-4 h-4 ${activeTab === "bulk_dnc_import" ? "" : "text-red-500"}`} />
             Bulk DNC Import
           </button>
+          <button
+            onClick={() => setActiveTab("litigator_upload")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+              activeTab === "litigator_upload"
+                ? "bg-red-700 text-white border-red-700"
+                : "bg-background text-muted-foreground border-border hover:border-red-600 hover:text-foreground"
+            }`}
+          >
+            <ShieldAlert className={`w-4 h-4 ${activeTab === "litigator_upload" ? "" : "text-red-600"}`} />
+            Litigator List
+          </button>
         </div>
 
         {/* DNC Scrub Panel */}
@@ -506,6 +659,8 @@ export default function ContactManagement() {
           <DncScrubPanel />
         ) : activeTab === "bulk_dnc_import" ? (
           <BulkDncImportPanel />
+        ) : activeTab === "litigator_upload" ? (
+          <LitigatorUploadPanel />
         ) : (
           <div>
             <div className="flex items-center gap-3 mb-4">

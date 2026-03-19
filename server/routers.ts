@@ -99,7 +99,7 @@ import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
 import { and, eq, sql } from "drizzle-orm";
-import { contacts, contactManagement as contactManagementTable, contactListMembers, contactLists, phoneNumbers as phoneNumbersTable } from "../drizzle/schema";
+import { contacts, contactManagement as contactManagementTable, contactListMembers, contactLists, phoneNumbers as phoneNumbersTable, litigatorNumbers as litigatorNumbersTable } from "../drizzle/schema";
 
 export const appRouter = router({
   system: systemRouter,
@@ -1718,6 +1718,78 @@ ${transcript}`,
         }
 
         return { total: targetContacts.length, clean, internalDnc: internalDncCount, litigator: litigatorCount, federalDnc: federalDncCount, errors };
+      }),
+
+    // Upload a CSV list of litigator phone numbers (manual upload)
+    uploadLitigators: protectedProcedure
+      .input(z.object({
+        phones: z.array(z.string()),  // array of phone numbers from CSV
+        source: z.string().optional(), // e.g. "TCPA Litigator List Jan 2026"
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        const normalized = input.phones
+          .map((p) => p.replace(/[^\d]/g, ""))
+          .filter((p) => p.length >= 10)
+          .map((p) => (p.length === 10 ? `+1${p}` : `+${p}`));
+        if (normalized.length === 0) return { inserted: 0, skipped: 0 };
+        // Deduplicate against existing entries for this user
+        const existing = await db
+          .select({ phone: litigatorNumbersTable.phone })
+          .from(litigatorNumbersTable)
+          .where(eq(litigatorNumbersTable.userId, ctx.user.id));
+        const existingSet = new Set(existing.map((e) => e.phone));
+        const newNumbers = normalized.filter((p) => !existingSet.has(p));
+        if (newNumbers.length === 0) return { inserted: 0, skipped: normalized.length };
+        // Batch insert in chunks of 500
+        const chunkSize = 500;
+        for (let i = 0; i < newNumbers.length; i += chunkSize) {
+          const chunk = newNumbers.slice(i, i + chunkSize);
+          await db.insert(litigatorNumbersTable).values(
+            chunk.map((phone) => ({
+              userId: ctx.user.id,
+              phone,
+              source: input.source ?? "manual_upload",
+            }))
+          );
+        }
+        // Also mark any matching contacts as litigators
+        for (const phone of newNumbers) {
+          await db.update(contacts)
+            .set({ litigatorFlag: true, dncStatus: "internal_dnc" })
+            .where(and(eq(contacts.userId, ctx.user.id), eq(contacts.phone, phone)));
+        }
+        return { inserted: newNumbers.length, skipped: normalized.length - newNumbers.length };
+      }),
+
+    // List all uploaded litigator numbers for this user
+    listLitigators: protectedProcedure
+      .input(z.object({ limit: z.number().default(100), offset: z.number().default(0) }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { numbers: [], total: 0 };
+        const rows = await db
+          .select()
+          .from(litigatorNumbersTable)
+          .where(eq(litigatorNumbersTable.userId, ctx.user.id))
+          .orderBy(litigatorNumbersTable.uploadedAt)
+          .limit(input.limit)
+          .offset(input.offset);
+        const [countRow] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(litigatorNumbersTable)
+          .where(eq(litigatorNumbersTable.userId, ctx.user.id));
+        return { numbers: rows, total: Number(countRow?.count ?? 0) };
+      }),
+
+    // Delete all uploaded litigator numbers for this user
+    clearLitigators: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        await db.delete(litigatorNumbersTable).where(eq(litigatorNumbersTable.userId, ctx.user.id));
+        return { success: true };
       }),
 
     // Get DNC summary for current user's contacts
