@@ -91,7 +91,7 @@ export default function PhoneNumbers() {
             Phone Numbers
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Search, buy, and manage your TextGrid phone numbers — all without leaving LotPulse SMS.
+            Search, buy, and manage your TextGrid phone numbers — all without leaving Property Pulse.
           </p>
         </div>
         <Button
@@ -263,7 +263,7 @@ export default function PhoneNumbers() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Release {formatPhone(num.phoneNumber)}?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This will permanently release this number from your TextGrid account and remove it from LotPulse SMS. This action cannot be undone.
+                            This will permanently release this number from your TextGrid account and remove it from Property Pulse. This action cannot be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

@@ -122,7 +122,7 @@ export default function DashboardLayout({
               <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
                 <MessageSquare className="h-5 w-5 text-white" />
               </div>
-              <span className="text-2xl font-bold tracking-tight">LotPulse SMS</span>
+              <span className="text-2xl font-bold tracking-tight">Property Pulse</span>
             </div>
             <h1 className="text-xl font-semibold text-center">Sign in to continue</h1>
             <p className="text-sm text-muted-foreground text-center max-w-sm">
@@ -233,7 +233,7 @@ function DashboardLayoutContent({
                     <MessageSquare className="h-3.5 w-3.5 text-white" />
                   </div>
                   <span className="font-bold text-sidebar-foreground tracking-tight truncate text-sm">
-                    LotPulse SMS
+                    Property Pulse
                   </span>
                 </div>
               )}
@@ -354,7 +354,7 @@ function DashboardLayoutContent({
           <div className="flex border-b h-14 items-center justify-between bg-background/95 px-4 backdrop-blur sticky top-0 z-40">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg" />
-              <span className="font-medium text-sm">{activeItem?.label ?? "LotPulse SMS"}</span>
+              <span className="font-medium text-sm">{activeItem?.label ?? "Property Pulse"}</span>
             </div>
           </div>
         )}
