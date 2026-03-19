@@ -691,6 +691,8 @@ export const appRouter = router({
         followUpDelayHours: z.number().min(1).max(720).default(24),
         followUpMessage: z.string().optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
+        campaignCategory: z.enum(["land", "house"]).default("house"),
+        aiOffersEnabled: z.boolean().default(false),
       }))
       .mutation(async ({ ctx, input }) => {
         const { steps, scheduledAt, ...campaignData } = input;

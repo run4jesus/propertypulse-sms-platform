@@ -147,6 +147,8 @@ export default function Campaigns() {
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<number[]>([]);
   const [sendMode, setSendMode] = useState<"automated" | "manual">("automated");
+  const [campaignCategory, setCampaignCategory] = useState<"land" | "house">("house");
+  const [aiOffersEnabled, setAiOffersEnabled] = useState(false);
   const [, navigate] = useLocation();
   const [steps, setSteps] = useState<Step[]>([
     { stepNumber: 1, body: "", delayDays: 0, delayHours: 0 },
@@ -229,6 +231,8 @@ export default function Campaigns() {
     setFollowUpDelayHours(24);
     setFollowUpMessage("Thanks for your time! If anything changes on your end, feel free to reach out.");
     setSendMode("automated");
+    setCampaignCategory("house");
+    setAiOffersEnabled(false);
     setSelectedTemplateIds([]);
     setSteps([{ stepNumber: 1, body: "", delayDays: 0, delayHours: 0 }]);
   };
@@ -264,6 +268,8 @@ export default function Campaigns() {
       scrubExistingContacts,
       templateIds: selectedTemplateIds.length > 0 ? selectedTemplateIds : undefined,
       sendMode,
+      campaignCategory,
+      aiOffersEnabled: campaignCategory === "land" ? aiOffersEnabled : false,
     });
   };
 
@@ -324,6 +330,54 @@ export default function Campaigns() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Campaign Category */}
+                <div>
+                  <Label className="text-xs font-semibold">Campaign Category</Label>
+                  <p className="text-xs text-muted-foreground mb-2">Is this a land campaign or a house campaign?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setCampaignCategory("house"); setAiOffersEnabled(false); }}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-lg border-2 py-3 px-2 text-sm font-medium transition-colors ${
+                        campaignCategory === "house"
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      <span className="text-lg">🏠</span>
+                      <span>House</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCampaignCategory("land")}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-lg border-2 py-3 px-2 text-sm font-medium transition-colors ${
+                        campaignCategory === "land"
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      <span className="text-lg">🌿</span>
+                      <span>Land</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* AI Offers — only shown for land campaigns */}
+                {campaignCategory === "land" && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">AI Agent Makes Offers</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">AI will automatically respond, ask for price, and make offers using DealMachine values.</p>
+                      </div>
+                      <Switch
+                        checked={aiOffersEnabled}
+                        onCheckedChange={setAiOffersEnabled}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <Label className="text-xs">Contact List</Label>
@@ -803,9 +857,16 @@ export default function Campaigns() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium truncate">{c.name}</p>
-                  <Badge className={`text-xs shrink-0 ${STATUS_COLORS[c.status] ?? ""}`} variant="secondary">
-                    {c.status}
-                  </Badge>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {c.campaignCategory === "land" ? (
+                      <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded px-1.5 py-0.5 font-medium">🌿 Land</span>
+                    ) : (
+                      <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-medium">🏠 House</span>
+                    )}
+                    <Badge className={`text-xs ${STATUS_COLORS[c.status] ?? ""}`} variant="secondary">
+                      {c.status}
+                    </Badge>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between mt-1.5">
                   <div className="flex gap-3 text-xs text-muted-foreground">

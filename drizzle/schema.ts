@@ -221,6 +221,10 @@ export const campaigns = mysqlTable("campaigns", {
   followUpMessage: text("followupmessage"),
   scheduledAt: timestamp("scheduledAt"),
   completedAt: timestamp("completedAt"),
+  // Campaign category: land or house
+  campaignCategory: mysqlEnum("campaignCategory", ["land", "house"]).default("house").notNull(),
+  // AI offers enabled — only relevant for land campaigns
+  aiOffersEnabled: boolean("aiOffersEnabled").default(false).notNull(),
   // AI toggle for this campaign
   aiEnabled: boolean("aiEnabled").default(false).notNull(),
   // Batch throttling — how many messages per batch and how many minutes between batches

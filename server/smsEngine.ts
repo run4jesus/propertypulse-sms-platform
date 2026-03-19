@@ -515,6 +515,38 @@ export async function handleInboundSms(
     user.twilioAuthToken
   ) {
     try {
+      // ─── Fetch campaign settings for this conversation ───────────────────────
+      // Check campaignCategory (land/house) and aiOffersEnabled so we know
+      // whether the AI should run the full offer playbook or just intro/not-interested.
+      let conversationCampaignCategory: "land" | "house" = "house";
+      let conversationAiOffersEnabled = false;
+      try {
+        const [firstOutboundMsg] = await db
+          .select({ campaignId: messages.campaignId })
+          .from(messages)
+          .where(and(
+            eq(messages.conversationId, conversation.id),
+            eq(messages.direction, "outbound")
+          ))
+          .orderBy(messages.id)
+          .limit(1);
+        if (firstOutboundMsg?.campaignId) {
+          const [convCampaign] = await db
+            .select()
+            .from(campaigns)
+            .where(eq(campaigns.id, firstOutboundMsg.campaignId))
+            .limit(1);
+          if (convCampaign) {
+            conversationCampaignCategory = (convCampaign as any).campaignCategory ?? "house";
+            conversationAiOffersEnabled = (convCampaign as any).aiOffersEnabled ?? false;
+          }
+        }
+      } catch (_campErr) {
+        // Non-fatal — default to house/no-offers
+      }
+      // For house campaigns, AI only handles not-interested detection.
+      // Full offer playbook only runs for land campaigns with aiOffersEnabled = true.
+      const aiOffersActive = conversationCampaignCategory === "land" && conversationAiOffersEnabled;
       // ─── Stage-aware playbook ────────────────────────────────────────────────
       // Stages: intro → price_ask → offer_made → handoff | not_interested
       // Once we reach 'handoff' or 'not_interested', the AI stops replying.
@@ -561,11 +593,21 @@ export async function handleInboundSms(
       // ─── Build stage-aware system prompt ────────────────────────────────────
       let stageContext: string;
       if (currentStage === "intro") {
-        stageContext = `CURRENT STAGE: intro — the seller just replied to your opening text asking if they'd consider selling.
+        if (!aiOffersActive) {
+          // House campaign or land campaign without AI offers — AI only handles not-interested detection.
+          // For yes/interested responses, the AI stays in intro so the VA can take over.
+          stageContext = `CURRENT STAGE: intro — the seller just replied to your opening text asking if they'd consider selling.
+- If they say NO or decline clearly (wrong number, not interested, stop, etc.), reply with the not-interested goodbye and set next_stage to "not_interested".
+- For ALL other responses (yes, maybe, questions, unclear), reply briefly and keep next_stage as "intro". Do NOT advance to price_ask — a human will handle the conversation from here.
+- If they ask if you are a bot or real person, deflect naturally (e.g. "Haha just texting around") and keep next_stage as "intro".`;
+        } else {
+          // Land campaign with AI offers enabled — full offer playbook.
+          stageContext = `CURRENT STAGE: intro — the seller just replied to your opening text asking if they'd consider selling.
 - If they say YES or are open to selling (even without a price), ask what price they have in mind and set next_stage to "price_ask".
 - If they say NO or decline clearly, reply with the not-interested goodbye and set next_stage to "not_interested".
 - If they ask a clarifying question or are unclear, answer briefly (1 sentence) and keep next_stage as "intro".
 - If they ask if you are a bot or real person, deflect naturally (e.g. "Haha just texting around") and redirect back to the question, keep next_stage as "intro".`;
+        }
       } else if (currentStage === "price_ask") {
         const buyLine = buyPriceFormatted
           ? `The buy price for this property (DealMachine estimate × 65%) is ${buyPriceFormatted}.`
