@@ -144,7 +144,7 @@ export const conversations = mysqlTable("conversations", {
   // price_ask: seller said yes, AI asked for price
   // handoff: seller gave price or asked for offer, AI sent handoff message
   // not_interested: seller declined
-  aiStage: mysqlEnum("aiStage", ["intro", "price_ask", "handoff", "not_interested"]).default("intro"),
+  aiStage: mysqlEnum("aiStage", ["intro", "price_ask", "offer_made", "handoff", "not_interested"]).default("intro"),
 
   // Lead disposition — manually set by user
   disposition: mysqlEnum("disposition", [

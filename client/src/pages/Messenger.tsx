@@ -73,6 +73,7 @@ function getDisposition(value: string | null | undefined) {
 const AI_STAGE_BADGES: Record<string, { label: string; className: string }> = {
   intro:          { label: "AI: Intro",        className: "bg-blue-50 text-blue-600 border border-blue-200" },
   price_ask:      { label: "AI: Price Asked",  className: "bg-amber-50 text-amber-600 border border-amber-200" },
+  offer_made:     { label: "AI: Offer Made",   className: "bg-orange-50 text-orange-600 border border-orange-200" },
   handoff:        { label: "AI: Handed Off",   className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
   not_interested: { label: "AI: Not Interest", className: "bg-slate-100 text-slate-500 border border-slate-200" },
 };
@@ -486,6 +487,7 @@ export default function Messenger() {
                     const stageLabels: Record<string, string> = {
                       intro: "AI: Intro",
                       price_ask: "AI: Price Asked",
+                      offer_made: "AI: Offer Made",
                       handoff: "AI: Handed Off",
                       not_interested: "AI: Not Interested",
                     };
@@ -499,7 +501,8 @@ export default function Messenger() {
                         <TooltipContent>
                           {stage === "intro" && "AI is waiting for seller's first reply"}
                           {stage === "price_ask" && "AI asked for price — waiting on seller's number"}
-                          {stage === "handoff" && "Seller gave a price — AI handed off to your partner"}
+                          {stage === "offer_made" && "AI made a counter-offer — waiting on seller's response"}
+                          {stage === "handoff" && "Seller accepted or gave a price — AI handed off to your partner"}
                           {stage === "not_interested" && "Seller declined — AI stopped replying"}
                         </TooltipContent>
                       </Tooltip>
