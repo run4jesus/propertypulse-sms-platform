@@ -13,6 +13,7 @@ import {
   Reply,
   PhoneOff,
   Activity,
+  HandCoins,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useMemo } from "react";
@@ -112,6 +113,15 @@ export default function Dashboard() {
       bg: "bg-orange-50 dark:bg-orange-500/10",
       iconColor: "text-orange-500",
     },
+    {
+      label: "Needs Offer",
+      value: stats?.needsOffer ?? 0,
+      icon: HandCoins,
+      color: "text-orange-700 font-bold",
+      bg: "bg-orange-100 dark:bg-orange-500/20",
+      iconColor: "text-orange-600",
+      href: "/messenger",
+    },
   ];
 
   return (
@@ -137,15 +147,28 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statCards.map((card) => {
           const Icon = card.icon;
+          const isNeedsOffer = card.label === "Needs Offer";
           return (
-            <Card key={card.label} className="border shadow-sm">
+            <Card
+              key={card.label}
+              className={`border shadow-sm transition-colors ${
+                isNeedsOffer
+                  ? "border-orange-300 dark:border-orange-500/40 cursor-pointer hover:border-orange-400"
+                  : ""
+              }`}
+              onClick={isNeedsOffer ? () => setLocation("/messenger") : undefined}
+            >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                    <p className={`text-xs font-medium uppercase tracking-wide ${
+                      isNeedsOffer ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"
+                    }`}>
                       {card.label}
                     </p>
-                    <p className="text-2xl font-bold tracking-tight">
+                    <p className={`text-2xl font-bold tracking-tight ${
+                      isNeedsOffer && (stats?.needsOffer ?? 0) > 0 ? "text-orange-600 dark:text-orange-400" : ""
+                    }`}>
                       {isLoading ? (
                         <span className="inline-block w-12 h-7 bg-muted animate-pulse rounded" />
                       ) : typeof card.value === "number" ? (
@@ -154,6 +177,9 @@ export default function Dashboard() {
                         card.value
                       )}
                     </p>
+                    {isNeedsOffer && (stats?.needsOffer ?? 0) > 0 && (
+                      <p className="text-xs text-orange-500">Click to view in Messenger</p>
+                    )}
                   </div>
                   <div className={`p-2 rounded-lg ${card.bg}`}>
                     <Icon className={`w-5 h-5 ${card.iconColor}`} />

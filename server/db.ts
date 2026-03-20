@@ -286,6 +286,10 @@ export async function getConversations(userId: number, opts?: { status?: string;
   const conditions = [eq(conversations.userId, userId)];
   if (opts?.status === 'unread') {
     conditions.push(sql`${conversations.unreadCount} > 0`);
+  } else if (opts?.status === 'needs_offer') {
+    conditions.push(sql`${conversations.aiStage} = 'needs_offer'`);
+  } else if (opts?.status === 'starred') {
+    conditions.push(sql`${conversations.isStarred} = 1`);
   } else if (opts?.status) {
     conditions.push(sql`${conversations.status} = ${opts.status}`);
   }
@@ -601,6 +605,7 @@ export async function getDashboardStats(userId: number, startDate?: Date, endDat
   const [totalContacts] = await db.select({ count: sql<number>`count(*)` }).from(contacts).where(eq(contacts.userId, userId));
   const [totalCampaigns] = await db.select({ count: sql<number>`count(*)` }).from(campaigns).where(eq(campaigns.userId, userId));
   const [activeCampaigns] = await db.select({ count: sql<number>`count(*)` }).from(campaigns).where(and(eq(campaigns.userId, userId), eq(campaigns.status, "active")));
+  const [needsOfferCount] = await db.select({ count: sql<number>`count(*)` }).from(conversations).where(and(eq(conversations.userId, userId), sql`${conversations.aiStage} = 'needs_offer'`));
 
   // Daily breakdown for chart — last 7 days or within range
   const chartStart = startDate ?? new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
@@ -635,6 +640,7 @@ export async function getDashboardStats(userId: number, startDate?: Date, endDat
     totalContacts: totalContacts?.count ?? 0,
     totalCampaigns: totalCampaigns?.count ?? 0,
     activeCampaigns: activeCampaigns?.count ?? 0,
+    needsOffer: needsOfferCount?.count ?? 0,
     dailyBreakdown: days,
   };
 }
