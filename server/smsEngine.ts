@@ -23,7 +23,7 @@ import {
   users,
 } from "../drizzle/schema";
 import { getDb } from "./db";
-import { invokeLLM } from "./_core/llm";
+import { callOpenAI } from "./openai";
 import { lookupPropertyValue, formatDollars } from "./dealmachine";
 
 // ─── Opt-out keywords ────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ async function classifyInboundIntent(
   latestMessage: string
 ): Promise<"hot_lead" | "warm_lead" | "not_interested" | "neutral"> {
   try {
-    const result = await invokeLLM({
+    const result = await callOpenAI({
       messages: [
         {
           role: "system",
@@ -581,7 +581,7 @@ BRANCHING RULES:
         // Fallback — should not reach here since needs_offer/handoff/not_interested stop the AI
         stageContext = `CURRENT STAGE: ${currentStage} — keep next_stage as "${currentStage}" and do not reply.`;
       }
-            const aiResponse = await invokeLLM({
+            const aiResponse = await callOpenAI({
         messages: [
           {
             role: "system",

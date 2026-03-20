@@ -419,3 +419,9 @@
 - [x] Add conversations.pushToPodio tRPC procedure (manual VA trigger, calls pushLeadToPodio)
 - [x] Add "Push to Podio" button in Messenger conversation header
 - [x] Add Leads Pushed stat tile to Dashboard (clickable, navigates to Messenger)
+
+## OpenAI GPT-4o Mini Integration
+- [x] Create server/openai.ts helper (direct OpenAI API calls)
+- [x] Swap invokeLLM in AI auto-response logic to use OpenAI GPT-4o mini
+- [x] Swap invokeLLM in AI analyze/generateReply procedures
+- [x] Add vitest to validate OpenAI key

@@ -2,7 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
-import { invokeLLM } from "./_core/llm";
+import { callOpenAI } from "./openai";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
@@ -1074,7 +1074,7 @@ export const appRouter = router({
           .map((m) => `${m.direction === "outbound" ? "Agent" : "Seller"}: ${m.body}`)
           .join("\n");
 
-        const response = await invokeLLM({
+        const response = await callOpenAI({
           messages: [
             {
               role: "system",
@@ -1167,7 +1167,7 @@ ${transcript}`,
           .map((m) => `${m.direction === "outbound" ? "Agent" : "Seller"}: ${m.body}`)
           .join("\n");
 
-        const response = await invokeLLM({
+        const response = await callOpenAI({
           messages: [
             {
               role: "system",
