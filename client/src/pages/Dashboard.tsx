@@ -10,6 +10,7 @@ import {
   Zap,
   CheckCircle2,
   ArrowRight,
+  ArrowUpRight,
   Reply,
   PhoneOff,
   Activity,
@@ -122,6 +123,14 @@ export default function Dashboard() {
       iconColor: "text-orange-600",
       href: "/messenger",
     },
+    {
+      label: "Leads Pushed",
+      value: stats?.leadsPushed ?? 0,
+      icon: ArrowUpRight,
+      color: "text-violet-700 font-bold",
+      bg: "bg-violet-100 dark:bg-violet-500/20",
+      iconColor: "text-violet-600",
+    },
   ];
 
   return (
@@ -148,12 +157,15 @@ export default function Dashboard() {
         {statCards.map((card) => {
           const Icon = card.icon;
           const isNeedsOffer = card.label === "Needs Offer";
+          const isLeadsPushed = card.label === "Leads Pushed";
           return (
             <Card
               key={card.label}
               className={`border shadow-sm transition-colors ${
                 isNeedsOffer
                   ? "border-orange-300 dark:border-orange-500/40 cursor-pointer hover:border-orange-400"
+                  : isLeadsPushed
+                  ? "border-violet-300 dark:border-violet-500/40"
                   : ""
               }`}
               onClick={isNeedsOffer ? () => setLocation("/messenger") : undefined}
@@ -162,12 +174,16 @@ export default function Dashboard() {
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <p className={`text-xs font-medium uppercase tracking-wide ${
-                      isNeedsOffer ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground"
+                      isNeedsOffer ? "text-orange-600 dark:text-orange-400"
+                      : isLeadsPushed ? "text-violet-600 dark:text-violet-400"
+                      : "text-muted-foreground"
                     }`}>
                       {card.label}
                     </p>
                     <p className={`text-2xl font-bold tracking-tight ${
-                      isNeedsOffer && (stats?.needsOffer ?? 0) > 0 ? "text-orange-600 dark:text-orange-400" : ""
+                      isNeedsOffer && (stats?.needsOffer ?? 0) > 0 ? "text-orange-600 dark:text-orange-400"
+                      : isLeadsPushed && (stats?.leadsPushed ?? 0) > 0 ? "text-violet-600 dark:text-violet-400"
+                      : ""
                     }`}>
                       {isLoading ? (
                         <span className="inline-block w-12 h-7 bg-muted animate-pulse rounded" />
@@ -179,6 +195,9 @@ export default function Dashboard() {
                     </p>
                     {isNeedsOffer && (stats?.needsOffer ?? 0) > 0 && (
                       <p className="text-xs text-orange-500">Click to view in Messenger</p>
+                    )}
+                    {isLeadsPushed && (
+                      <p className="text-xs text-violet-500">Total pushed to Podio</p>
                     )}
                   </div>
                   <div className={`p-2 rounded-lg ${card.bg}`}>

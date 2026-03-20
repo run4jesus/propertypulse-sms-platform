@@ -411,3 +411,11 @@
 - [ ] AI says "my partner handles pricing, I'll have him reach out" when price is given or asked for offer
 - [ ] LLM classification updated to match new framework stages
 - [ ] Focus on houses only (no land logic)
+
+## VA Podio Push Button + Leads Tracker
+- [x] Add podioLeadPushed boolean field to conversations schema
+- [x] Push schema migration
+- [x] Add leadsPushed count to getDashboardStats
+- [x] Add conversations.pushToPodio tRPC procedure (manual VA trigger, calls pushLeadToPodio)
+- [x] Add "Push to Podio" button in Messenger conversation header
+- [x] Add Leads Pushed stat tile to Dashboard (clickable, navigates to Messenger)

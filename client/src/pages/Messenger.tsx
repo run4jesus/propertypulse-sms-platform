@@ -204,6 +204,14 @@ export default function Messenger() {
     onError: () => toast.error("Failed to generate reply"),
   });
 
+  const pushToPodio = trpc.conversations.pushToPodio.useMutation({
+    onSuccess: () => {
+      toast.success("Lead pushed to Podio");
+      utils.conversations.get.invalidate({ id: selectedId! });
+    },
+    onError: (err) => toast.error(`Podio push failed: ${err.message}`),
+  });
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -510,6 +518,32 @@ export default function Messenger() {
                       </Tooltip>
                     );
                   })()}
+
+                  {/* Push to Podio button */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={conv?.podioLeadPushed ? "outline" : "default"}
+                        size="sm"
+                        className={`h-8 text-xs gap-1.5 ${conv?.podioLeadPushed ? "border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100" : "bg-violet-600 hover:bg-violet-700 text-white"}`}
+                        onClick={() => pushToPodio.mutate({ id: selectedId! })}
+                        disabled={pushToPodio.isPending}
+                      >
+                        {pushToPodio.isPending ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : conv?.podioLeadPushed ? (
+                          <>✓ Pushed to Podio</>
+                        ) : (
+                          <>Push to Podio</>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {conv?.podioLeadPushed
+                        ? `Pushed to Podio on ${conv.podioLeadPushedAt ? new Date((conv as any).podioLeadPushedAt).toLocaleDateString() : ""}`
+                        : "Push this lead to Podio CRM"}
+                    </TooltipContent>
+                  </Tooltip>
 
                   <Tooltip>
                     <TooltipTrigger asChild>

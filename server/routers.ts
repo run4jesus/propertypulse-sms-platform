@@ -621,6 +621,49 @@ export const appRouter = router({
         await removeLabelFromConversation(input.conversationId, input.labelId);
         return { success: true };
       }),
+
+    // ─── VA: Push lead to Podio CRM ───────────────────────────────────────────
+    pushToPodio: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        const { conversations: convsTable, contacts: contactsTable, messages: messagesTable, users: usersTable } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const [conv] = await db.select().from(convsTable).where(eq(convsTable.id, input.id)).limit(1);
+        if (!conv || conv.userId !== ctx.user.id) throw new Error("Conversation not found");
+        const [contact] = await db.select().from(contactsTable).where(eq(contactsTable.id, conv.contactId)).limit(1);
+        if (!contact) throw new Error("Contact not found");
+        const [userRow] = await db.select().from(usersTable).where(eq(usersTable.id, ctx.user.id)).limit(1);
+        const propAddr = (contact as any).propertyAddress || (contact as any).address || "Address not on file";
+        const allMsgs = await db.select().from(messagesTable).where(eq(messagesTable.conversationId, conv.id)).orderBy(messagesTable.createdAt);
+        const { pushLeadToPodio, buildConversationThread } = await import("./podioIntegration");
+        const thread = buildConversationThread(allMsgs);
+        const result = await pushLeadToPodio({
+          firstName: contact.firstName || "",
+          lastName: contact.lastName || "",
+          phone: contact.phone,
+          propertyAddress: propAddr,
+          temperature: "Warm",
+          conversationThread: thread,
+          webformUrl: (userRow as any)?.podioWebformUrl || undefined,
+        });
+        if (!result.success) throw new Error(result.error || "Podio push failed");
+        // Mark conversation as pushed
+        await db.update(convsTable)
+          .set({ podioLeadPushed: true, podioLeadPushedAt: new Date() })
+          .where(eq(convsTable.id, input.id));
+        // Owner notification
+        try {
+          const { notifyOwner } = await import("./_core/notification");
+          const contactName = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.phone;
+          await notifyOwner({
+            title: `Lead pushed to Podio: ${contactName}`,
+            content: `Contact: ${contactName}\nPhone: ${contact.phone}\nProperty: ${propAddr}`,
+          });
+        } catch (_e) { /* non-critical */ }
+        return { success: true };
+      }),
   }),
 
   // ─── Messages ────────────────────────────────────────────────────────────────

@@ -160,6 +160,9 @@ export const conversations = mysqlTable("conversations", {
    // Campaign that originated this conversation — each campaign gets its own
   // conversation thread so the AI always starts fresh (clean aiStage = intro)
   campaignId: int("campaignId"),
+  // VA manually pushed this lead to Podio CRM
+  podioLeadPushed: boolean("podioLeadPushed").default(false).notNull(),
+  podioLeadPushedAt: timestamp("podioLeadPushedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

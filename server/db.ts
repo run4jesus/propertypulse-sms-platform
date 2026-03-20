@@ -608,6 +608,7 @@ export async function getDashboardStats(userId: number, startDate?: Date, endDat
   const [totalCampaigns] = await db.select({ count: sql<number>`count(*)` }).from(campaigns).where(eq(campaigns.userId, userId));
   const [activeCampaigns] = await db.select({ count: sql<number>`count(*)` }).from(campaigns).where(and(eq(campaigns.userId, userId), eq(campaigns.status, "active")));
   const [needsOfferCount] = await db.select({ count: sql<number>`count(*)` }).from(conversations).where(and(eq(conversations.userId, userId), sql`${conversations.aiStage} = 'needs_offer'`));
+  const [leadsPushedCount] = await db.select({ count: sql<number>`count(*)` }).from(conversations).where(and(eq(conversations.userId, userId), eq(conversations.podioLeadPushed, true)));
 
   // Daily breakdown for chart — last 7 days or within range
   const chartStart = startDate ?? new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
@@ -643,6 +644,7 @@ export async function getDashboardStats(userId: number, startDate?: Date, endDat
     totalCampaigns: totalCampaigns?.count ?? 0,
     activeCampaigns: activeCampaigns?.count ?? 0,
     needsOffer: needsOfferCount?.count ?? 0,
+    leadsPushed: leadsPushedCount?.count ?? 0,
     dailyBreakdown: days,
   };
 }
