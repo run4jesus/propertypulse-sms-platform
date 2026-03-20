@@ -62,19 +62,22 @@ function BatchEditDialog({
   campaignId,
   currentBatchSize,
   currentInterval,
+  currentDailySendCap,
   onSave,
 }: {
   campaignId: number;
   currentBatchSize: number;
   currentInterval: number;
-  onSave: (batchSize: number, intervalMinutes: number) => void;
+  currentDailySendCap?: number | null;
+  onSave: (batchSize: number, intervalMinutes: number, dailySendCap: number | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [bs, setBs] = useState(currentBatchSize);
   const [bi, setBi] = useState(currentInterval);
+  const [cap, setCap] = useState<number | null>(currentDailySendCap ?? null);
 
   const handleOpen = (val: boolean) => {
-    if (val) { setBs(currentBatchSize); setBi(currentInterval); }
+    if (val) { setBs(currentBatchSize); setBi(currentInterval); setCap(currentDailySendCap ?? null); }
     setOpen(val);
   };
 
@@ -110,7 +113,21 @@ function BatchEditDialog({
           <p className="text-xs text-muted-foreground">
             ~{Math.round((bs / bi) * 60)} messages/hr
           </p>
-          <Button className="w-full" onClick={() => { onSave(bs, bi); setOpen(false); toast.success("Send rate updated"); }}>
+          <div className="border-t border-border/50 pt-3">
+            <Label className="text-xs font-semibold">Daily Send Cap</Label>
+            <p className="text-xs text-muted-foreground mb-2">Max contacts texted per day. Leave blank for unlimited.</p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number" min={1} placeholder="Unlimited"
+                value={cap ?? ""}
+                onChange={(e) => { const v = parseInt(e.target.value); setCap(isNaN(v) || v < 1 ? null : v); }}
+                className="h-8 text-sm w-36"
+              />
+              <span className="text-xs text-muted-foreground">contacts/day</span>
+              {cap && <button type="button" onClick={() => setCap(null)} className="text-xs underline text-muted-foreground hover:text-foreground">Clear</button>}
+            </div>
+          </div>
+          <Button className="w-full" onClick={() => { onSave(bs, bi, cap); setOpen(false); toast.success("Send rate updated"); }}>
             Save
           </Button>
         </div>
@@ -136,6 +153,7 @@ export default function Campaigns() {
   const [batchIntervalMinutes, setBatchIntervalMinutes] = useState(5);
   const [sendWindowStart, setSendWindowStart] = useState("09:00");
   const [sendWindowEnd, setSendWindowEnd] = useState("20:00");
+  const [dailySendCap, setDailySendCap] = useState<number | null>(null);
   const [optOutFooter, setOptOutFooter] = useState(true);
   const [scrubInternalDnc, setScrubInternalDnc] = useState(true);
   const [scrubLitigators, setScrubLitigators] = useState(true);
@@ -258,6 +276,7 @@ export default function Campaigns() {
       batchIntervalMinutes,
       sendWindowStart,
       sendWindowEnd,
+      dailySendCap: dailySendCap ?? undefined,
       steps: campaignSteps,
       optOutFooter,
       scrubInternalDnc,
@@ -489,6 +508,38 @@ export default function Campaigns() {
                     {" — "}
                     ~{Math.round((batchSize / batchIntervalMinutes) * 60)} msg/hr
                   </p>
+                  <div className="border-t border-border/50 pt-3">
+                    <Label className="text-xs font-semibold">Daily Send Cap</Label>
+                    <p className="text-xs text-muted-foreground mb-2">Limit how many contacts are texted per day. Leave blank for unlimited.</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Unlimited"
+                        value={dailySendCap ?? ""}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setDailySendCap(isNaN(val) || val < 1 ? null : val);
+                        }}
+                        className="h-8 text-sm w-40"
+                      />
+                      <span className="text-xs text-muted-foreground">contacts/day</span>
+                      {dailySendCap && (
+                        <button
+                          type="button"
+                          onClick={() => setDailySendCap(null)}
+                          className="text-xs text-muted-foreground hover:text-foreground underline"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    {dailySendCap && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Campaign will pause after sending <strong>{dailySendCap.toLocaleString()}</strong> messages today and resume tomorrow.
+                      </p>
+                    )}
+                  </div>
                   <div className="border-t border-border/50 pt-3">
                     <Label className="text-xs text-muted-foreground">Daily Send Window (only send between these hours)</Label>
                     <div className="grid grid-cols-2 gap-3 mt-1">
@@ -993,7 +1044,8 @@ export default function Campaigns() {
                     campaignId={selectedId!}
                     currentBatchSize={selectedCampaign.batchSize}
                     currentInterval={selectedCampaign.batchIntervalMinutes}
-                    onSave={(bs, bi) => updateCampaign.mutate({ id: selectedId!, batchSize: bs, batchIntervalMinutes: bi })}
+                    currentDailySendCap={selectedCampaign.dailySendCap}
+                    onSave={(bs, bi, cap) => updateCampaign.mutate({ id: selectedId!, batchSize: bs, batchIntervalMinutes: bi, dailySendCap: cap })}
                   />
                 )}
               </div>
@@ -1011,6 +1063,12 @@ export default function Campaigns() {
                     ~{Math.round((selectedCampaign.batchSize / selectedCampaign.batchIntervalMinutes) * 60)}
                   </p>
                   <p className="text-xs text-muted-foreground">msgs/hr</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">
+                    {selectedCampaign.dailySendCap ? selectedCampaign.dailySendCap.toLocaleString() : "∞"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">daily cap</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">

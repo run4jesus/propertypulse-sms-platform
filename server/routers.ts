@@ -736,6 +736,7 @@ export const appRouter = router({
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
         campaignCategory: z.enum(["land", "house"]).default("house"),
         aiOffersEnabled: z.boolean().default(false),
+        dailySendCap: z.number().min(1).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { steps, scheduledAt, ...campaignData } = input;
@@ -779,6 +780,7 @@ export const appRouter = router({
         followUpDelayHours: z.number().min(1).max(720).optional(),
         followUpMessage: z.string().optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
+        dailySendCap: z.number().min(1).nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { id, steps, scheduledAt, ...data } = input;

@@ -721,6 +721,27 @@ export async function processCampaignBatches() {
         if (msSinceLast < msRequired) continue;
       }
 
+      // ─── Daily send cap check ───────────────────────────────────────────────
+      const todayStr = now.toISOString().slice(0, 10); // "YYYY-MM-DD"
+      let dailySentToday = 0;
+      if (campaign.dailySendCap != null) {
+        // Reset counter if it's a new calendar day
+        if (campaign.dailySentDate !== todayStr) {
+          await db
+            .update(campaigns)
+            .set({ dailySentCount: 0, dailySentDate: todayStr })
+            .where(eq(campaigns.id, campaign.id));
+          dailySentToday = 0;
+        } else {
+          dailySentToday = campaign.dailySentCount ?? 0;
+        }
+        const remaining = campaign.dailySendCap - dailySentToday;
+        if (remaining <= 0) {
+          // Daily cap hit — skip until tomorrow
+          continue;
+        }
+      }
+
       // Get the user for credentials
       const [user] = await db
         .select()
@@ -751,12 +772,17 @@ export async function processCampaignBatches() {
       // Get contacts in the campaign's list, starting from nextBatchOffset
       if (!campaign.contactListId) continue;
 
+      // Cap batch size to remaining daily allowance if a cap is set
+      const effectiveBatchSize = campaign.dailySendCap != null
+        ? Math.min(campaign.batchSize, campaign.dailySendCap - dailySentToday)
+        : campaign.batchSize;
+
       const batchContacts = await db
         .select({ contact: contacts })
         .from(contactListMembers)
         .innerJoin(contacts, eq(contactListMembers.contactId, contacts.id))
         .where(eq(contactListMembers.listId, campaign.contactListId))
-        .limit(campaign.batchSize)
+        .limit(effectiveBatchSize)
         .offset(campaign.nextBatchOffset);
 
       if (batchContacts.length === 0) {
@@ -975,12 +1001,16 @@ export async function processCampaignBatches() {
       }
       // Update campaign stats and batch tracking
       const newOffset = campaign.nextBatchOffset + batchContacts.length;
+      // Increment daily sent counter
+      const newDailySentCount = dailySentToday + sentCount;
       await db
         .update(campaigns)
         .set({
           sent: sql`${campaigns.sent} + ${sentCount}`,
           lastBatchSentAt: now,
           nextBatchOffset: newOffset,
+          dailySentCount: newDailySentCount,
+          dailySentDate: todayStr,
         })
         .where(eq(campaigns.id, campaign.id));
 

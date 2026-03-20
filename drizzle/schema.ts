@@ -243,6 +243,10 @@ export const campaigns = mysqlTable("campaigns", {
   scrubLitigators: boolean("scrubLitigators").default(true).notNull(),
   scrubFederalDnc: boolean("scrubFederalDnc").default(false).notNull(),
   scrubExistingContacts: boolean("scrubExistingContacts").default(false).notNull(),
+  // Daily send cap — null means unlimited; resets each calendar day
+  dailySendCap: int("dailySendCap"),
+  dailySentCount: int("dailySentCount").default(0).notNull(),
+  dailySentDate: varchar("dailySentDate", { length: 10 }),
   // Batch send engine tracking
   lastBatchSentAt: timestamp("lastBatchSentAt"),
   nextBatchOffset: int("nextBatchOffset").default(0).notNull(),

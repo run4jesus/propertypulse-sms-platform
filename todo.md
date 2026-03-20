@@ -425,3 +425,11 @@
 - [x] Swap invokeLLM in AI auto-response logic to use OpenAI GPT-4o mini
 - [x] Swap invokeLLM in AI analyze/generateReply procedures
 - [x] Add vitest to validate OpenAI key
+
+## Daily Send Cap (Option 3 Lead Flow Control)
+- [x] Add dailySendCap column to campaigns schema (nullable int, null = unlimited)
+- [x] Add dailySentCount and dailySentDate tracking columns to campaigns schema
+- [x] Push schema migration
+- [x] Update batch engine to check/enforce daily send cap
+- [x] Add Daily Send Cap field to campaign creation UI
+- [x] Add Daily Send Cap field to campaign edit/settings UI
