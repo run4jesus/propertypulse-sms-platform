@@ -900,6 +900,23 @@ export default function Campaigns() {
                     <Badge className={`text-xs ${STATUS_COLORS[c.status] ?? ""}`} variant="secondary">
                       {c.status}
                     </Badge>
+                    {/* Quick pause/resume toggle */}
+                    {(c.status === "active" || c.status === "paused") && (
+                      <button
+                        title={c.status === "active" ? "Pause campaign" : "Resume campaign"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateCampaign.mutate({ id: c.id, status: c.status === "active" ? "paused" : "active" });
+                        }}
+                        className={`p-1 rounded transition-colors ${
+                          c.status === "active"
+                            ? "text-yellow-600 hover:bg-yellow-50"
+                            : "text-green-600 hover:bg-green-50"
+                        }`}
+                      >
+                        {c.status === "active" ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between mt-1.5">
