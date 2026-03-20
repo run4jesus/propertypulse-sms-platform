@@ -515,45 +515,14 @@ export async function handleInboundSms(
     user.twilioAuthToken
   ) {
     try {
-      // ─── Fetch campaign settings for this conversation ───────────────────────
-      // Check campaignCategory (land/house) and aiOffersEnabled so we know
-      // whether the AI should run the full offer playbook or just intro/not-interested.
-      let conversationCampaignCategory: "land" | "house" = "house";
-      let conversationAiOffersEnabled = false;
-      try {
-        const [firstOutboundMsg] = await db
-          .select({ campaignId: messages.campaignId })
-          .from(messages)
-          .where(and(
-            eq(messages.conversationId, conversation.id),
-            eq(messages.direction, "outbound")
-          ))
-          .orderBy(messages.id)
-          .limit(1);
-        if (firstOutboundMsg?.campaignId) {
-          const [convCampaign] = await db
-            .select()
-            .from(campaigns)
-            .where(eq(campaigns.id, firstOutboundMsg.campaignId))
-            .limit(1);
-          if (convCampaign) {
-            conversationCampaignCategory = (convCampaign as any).campaignCategory ?? "house";
-            conversationAiOffersEnabled = (convCampaign as any).aiOffersEnabled ?? false;
-          }
-        }
-      } catch (_campErr) {
-        // Non-fatal — default to house/no-offers
-      }
-      // For house campaigns, AI only handles not-interested detection.
-      // Full offer playbook only runs for land campaigns with aiOffersEnabled = true.
-      const aiOffersActive = conversationCampaignCategory === "land" && conversationAiOffersEnabled;
       // ─── Stage-aware playbook ────────────────────────────────────────────────
-      // Stages: intro → price_ask → offer_made → handoff | not_interested
-      // Once we reach 'handoff' or 'not_interested', the AI stops replying.
+      // Unified playbook for all campaign types (house and land).
+      // Stages: intro → price_ask → needs_offer | not_interested
+      // Once we reach 'needs_offer', 'handoff', or 'not_interested', the AI stops.
       const currentStage = (conversation as any).aiStage ?? "intro";
 
       // If already handed off or marked not-interested, do NOT send another reply
-      if (currentStage === "handoff" || currentStage === "not_interested") {
+      if (currentStage === "handoff" || currentStage === "not_interested" || currentStage === "needs_offer") {
         console.log(`[SMS] AI skipping reply — conversation ${conversation.id} is in stage "${currentStage}"`);
         return;
       }
@@ -575,7 +544,7 @@ export async function handleInboundSms(
       // Look up the property value when we're in price_ask or offer_made stage
       // so the AI can make / evaluate offers using real data.
       let propertyInfo: { estimatedValue: number | null; buyPrice: number | null } | null = null;
-      if ((currentStage === "price_ask" || currentStage === "offer_made") &&
+      if (currentStage === "price_ask" &&
           contact.propertyAddress && contact.propertyCity && contact.propertyState) {
         propertyInfo = await lookupPropertyValue(
           contact.propertyAddress,
@@ -591,47 +560,28 @@ export async function handleInboundSms(
       const buyPriceFormatted = propertyInfo?.buyPrice ? formatDollars(propertyInfo.buyPrice) : null;
 
       // ─── Build stage-aware system prompt ────────────────────────────────────
+      // Unified playbook — works for both house and land campaigns.
+      // AI handles intro → price_ask, then marks needs_offer and stops for VA.
       let stageContext: string;
       if (currentStage === "intro") {
-        if (!aiOffersActive) {
-          // House campaign or land campaign without AI offers — AI only handles not-interested detection.
-          // For yes/interested responses, the AI stays in intro so the VA can take over.
-          stageContext = `CURRENT STAGE: intro — the seller just replied to your opening text asking if they'd consider selling.
-- If they say NO or decline clearly (wrong number, not interested, stop, etc.), reply with the not-interested goodbye and set next_stage to "not_interested".
-- For ALL other responses (yes, maybe, questions, unclear), reply briefly and keep next_stage as "intro". Do NOT advance to price_ask — a human will handle the conversation from here.
-- If they ask if you are a bot or real person, deflect naturally (e.g. "Haha just texting around") and keep next_stage as "intro".`;
-        } else {
-          // Land campaign with AI offers enabled — full offer playbook.
-          stageContext = `CURRENT STAGE: intro — the seller just replied to your opening text asking if they'd consider selling.
+        stageContext = `CURRENT STAGE: intro — the seller just replied to your opening text asking if they'd consider selling.
 - If they say YES or are open to selling (even without a price), ask what price they have in mind and set next_stage to "price_ask".
-- If they say NO or decline clearly, reply with the not-interested goodbye and set next_stage to "not_interested".
+- If they say NO or decline clearly (wrong number, not interested, stop, remove me, etc.), reply with the not-interested goodbye and set next_stage to "not_interested".
 - If they ask a clarifying question or are unclear, answer briefly (1 sentence) and keep next_stage as "intro".
 - If they ask if you are a bot or real person, deflect naturally (e.g. "Haha just texting around") and redirect back to the question, keep next_stage as "intro".`;
-        }
       } else if (currentStage === "price_ask") {
-        const buyLine = buyPriceFormatted
-          ? `The buy price for this property (DealMachine estimate × 65%) is ${buyPriceFormatted}.`
-          : `No property value available — if the seller says "make me an offer", use the make-offer script below.`;
         stageContext = `CURRENT STAGE: price_ask — you already asked the seller what price they have in mind.
-${buyLine}
-
 BRANCHING RULES:
-1. If seller gives a price AT OR BELOW the buy price (${buyPriceFormatted ?? "unknown"}): reply with the warm-lead handoff and set next_stage to "handoff".
-2. If seller gives a price ABOVE the buy price: make a counter-offer at exactly ${buyPriceFormatted ?? "our buy price"} and set next_stage to "offer_made".
-3. If seller says "make me an offer" or refuses to give a price but is still open: reply with the make-offer script and set next_stage to "offer_made".
-4. If seller says NO or declines clearly: reply with the not-interested goodbye and set next_stage to "not_interested".
-5. If seller asks a clarifying question or is still unclear: answer briefly and keep next_stage as "price_ask".
-6. If seller asks if you are a bot: deflect naturally and redirect back to price, keep next_stage as "price_ask".`;
+1. If seller gives ANY specific price or dollar amount: reply with the needs-offer handoff message and set next_stage to "needs_offer". The VA will take over from here to make the actual offer.
+2. If seller says "make me an offer", "you tell me", or refuses to name a price but is still open: reply with the needs-offer handoff message and set next_stage to "needs_offer".
+3. If seller says NO or declines clearly: reply with the not-interested goodbye and set next_stage to "not_interested".
+4. If seller asks a clarifying question or is still unclear: answer briefly and keep next_stage as "price_ask".
+5. If seller asks if you are a bot: deflect naturally and redirect back to price, keep next_stage as "price_ask".`;
       } else {
-        // offer_made stage — we already made a counter-offer, waiting on seller response
-        stageContext = `CURRENT STAGE: offer_made — you already made a counter-offer at ${buyPriceFormatted ?? "our buy price"}. Now:
-1. If seller ACCEPTS (says yes, ok, deal, sounds good, etc.): reply with the warm-lead handoff and set next_stage to "handoff".
-2. If seller DECLINES or says that's too low: reply with the not-interested goodbye and set next_stage to "not_interested".
-3. If seller is still negotiating or asks a question: answer briefly (1 sentence) and keep next_stage as "offer_made".
-4. If seller asks if you are a bot: deflect naturally and redirect back to the offer, keep next_stage as "offer_made".`;
+        // Fallback — should not reach here since needs_offer/handoff/not_interested stop the AI
+        stageContext = `CURRENT STAGE: ${currentStage} — keep next_stage as "${currentStage}" and do not reply.`;
       }
-
-      const aiResponse = await invokeLLM({
+            const aiResponse = await invokeLLM({
         messages: [
           {
             role: "system",
@@ -642,9 +592,7 @@ ${stageContext}
 EXACT REPLY TEMPLATES — use these word-for-word when the rule applies:
 - Not interested goodbye: "No worries at all, thanks for your time. Feel free to reach out if anything changes."
 - Ask for price: "Ok great, what price did you have in mind for the property?"
-- Warm-lead handoff (seller price is at/under buy price, or seller accepts counter): "Ok great, my partner usually handles the pricing side — I'll have him give you a call shortly."
-- Make-offer script (seller says "make me an offer" or no buy price available): "Typically in this area we're buying around ${buyPriceFormatted ?? "market value × 65%"}, did that sound like a price you were considering?"
-- Counter-offer (seller price is above buy price): "We'd be able to come in around ${buyPriceFormatted ?? "our buy price"}, would that work for you?"
+- Needs-offer handoff (seller gives a price OR says make me an offer): "Got it! Let me get that info over to the right person and they'll be in touch with you shortly."
 
 CRITICAL RULES — never break these:
 - NEVER mention a company name, your name, or your partner's name
@@ -656,7 +604,7 @@ CRITICAL RULES — never break these:
           },
           {
             role: "user",
-            content: `Conversation so far:\n${transcript}\n\nLatest seller message: "${Body}"\n\nReply with a JSON object:\n- "reply": the exact SMS text to send\n- "next_stage": one of "intro", "price_ask", "offer_made", "handoff", "not_interested"`,
+            content: `Conversation so far:\n${transcript}\n\nLatest seller message: "${Body}"\n\nReply with a JSON object:\n- "reply": the exact SMS text to send\n- "next_stage": one of "intro", "price_ask", "needs_offer", "handoff", "not_interested"`,
           },
         ],
         response_format: {
@@ -668,7 +616,7 @@ CRITICAL RULES — never break these:
               type: "object",
               properties: {
                 reply: { type: "string", description: "The SMS reply to send" },
-                next_stage: { type: "string", enum: ["intro", "price_ask", "offer_made", "handoff", "not_interested"] },
+                next_stage: { type: "string", enum: ["intro", "price_ask", "needs_offer", "handoff", "not_interested"] },
               },
               required: ["reply", "next_stage"],
               additionalProperties: false,
@@ -724,7 +672,7 @@ CRITICAL RULES — never break these:
               lastMessageAt: new Date(),
               lastMessagePreview: replyBody.slice(0, 200),
               status: "active",
-              aiStage: nextStage as "intro" | "price_ask" | "offer_made" | "handoff" | "not_interested",
+              aiStage: nextStage as "intro" | "price_ask" | "needs_offer" | "handoff" | "not_interested",
             } as any)
             .where(eq(conversations.id, conversation.id));
 

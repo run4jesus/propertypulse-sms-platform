@@ -144,7 +144,7 @@ export const conversations = mysqlTable("conversations", {
   // price_ask: seller said yes, AI asked for price
   // handoff: seller gave price or asked for offer, AI sent handoff message
   // not_interested: seller declined
-  aiStage: mysqlEnum("aiStage", ["intro", "price_ask", "offer_made", "handoff", "not_interested"]).default("intro"),
+  aiStage: mysqlEnum("aiStage", ["intro", "price_ask", "needs_offer", "handoff", "not_interested"]).default("intro"),
 
   // Lead disposition — manually set by user
   disposition: mysqlEnum("disposition", [
@@ -223,8 +223,6 @@ export const campaigns = mysqlTable("campaigns", {
   completedAt: timestamp("completedAt"),
   // Campaign category: land or house
   campaignCategory: mysqlEnum("campaignCategory", ["land", "house"]).default("house").notNull(),
-  // AI offers enabled — only relevant for land campaigns
-  aiOffersEnabled: boolean("aiOffersEnabled").default(false).notNull(),
   // AI toggle for this campaign
   aiEnabled: boolean("aiEnabled").default(false).notNull(),
   // Batch throttling — how many messages per batch and how many minutes between batches

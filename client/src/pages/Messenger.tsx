@@ -71,11 +71,11 @@ function getDisposition(value: string | null | undefined) {
 
 // ─── AI stage badge config ───────────────────────────────────────────────────
 const AI_STAGE_BADGES: Record<string, { label: string; className: string }> = {
-  intro:          { label: "AI: Intro",        className: "bg-blue-50 text-blue-600 border border-blue-200" },
-  price_ask:      { label: "AI: Price Asked",  className: "bg-amber-50 text-amber-600 border border-amber-200" },
-  offer_made:     { label: "AI: Offer Made",   className: "bg-orange-50 text-orange-600 border border-orange-200" },
-  handoff:        { label: "AI: Handed Off",   className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-  not_interested: { label: "AI: Not Interest", className: "bg-slate-100 text-slate-500 border border-slate-200" },
+  intro:          { label: "AI: Intro",          className: "bg-blue-50 text-blue-600 border border-blue-200" },
+  price_ask:      { label: "AI: Price Asked",    className: "bg-amber-50 text-amber-600 border border-amber-200" },
+  needs_offer:    { label: "AI: Needs Offer",    className: "bg-orange-50 text-orange-700 border border-orange-200" },
+  handoff:        { label: "AI: Handed Off",     className: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+  not_interested: { label: "AI: Not Interested", className: "bg-slate-100 text-slate-500 border border-slate-200" },
 };
 
 function getScoreColor(score: number) {
@@ -382,8 +382,8 @@ export default function Messenger() {
                         <Bot className="h-3 w-3 text-primary" />
                       )}
                       {cv.aiEnabled && (() => {
-                        const stage = (cv as any).aiStage as string | undefined;
-                        const badge = stage && stage !== "intro" ? AI_STAGE_BADGES[stage] : null;
+                        const stage = (cv as any).aiStage as string | undefined ?? "intro";
+                        const badge = AI_STAGE_BADGES[stage];
                         return badge ? (
                           <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${badge.className}`}>
                             {badge.label}
@@ -484,25 +484,18 @@ export default function Messenger() {
                     const stage = (conv as any).aiStage as string | undefined ?? "intro";
                     const badge = AI_STAGE_BADGES[stage];
                     if (!badge) return null;
-                    const stageLabels: Record<string, string> = {
-                      intro: "AI: Intro",
-                      price_ask: "AI: Price Asked",
-                      offer_made: "AI: Offer Made",
-                      handoff: "AI: Handed Off",
-                      not_interested: "AI: Not Interested",
-                    };
                     return (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className={`text-xs px-2 py-1 rounded-lg font-medium cursor-default ${badge.className}`}>
-                            {stageLabels[stage] ?? stage}
+                            {badge.label}
                           </span>
                         </TooltipTrigger>
                         <TooltipContent>
-                          {stage === "intro" && "AI is waiting for seller's first reply"}
+                          {stage === "intro" && "AI is active — waiting for seller's first reply"}
                           {stage === "price_ask" && "AI asked for price — waiting on seller's number"}
-                          {stage === "offer_made" && "AI made a counter-offer — waiting on seller's response"}
-                          {stage === "handoff" && "Seller accepted or gave a price — AI handed off to your partner"}
+                          {stage === "needs_offer" && "Seller gave a price — VA needs to make an offer manually"}
+                          {stage === "handoff" && "AI handed off — your partner will call"}
                           {stage === "not_interested" && "Seller declined — AI stopped replying"}
                         </TooltipContent>
                       </Tooltip>
