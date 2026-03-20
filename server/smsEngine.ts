@@ -912,27 +912,31 @@ export async function processCampaignBatches() {
         sentCount++;
 
         {
-          // Find or create conversation
+           // Find or create conversation — scoped to this campaign so each campaign
+          // gets its own fresh thread with aiStage = intro, even if the contact
+          // was texted in a previous campaign from a different number.
           let [conv] = await db
             .select()
             .from(conversations)
             .where(
               and(
                 eq(conversations.userId, campaign.userId),
-                eq(conversations.contactId, contact.id)
+                eq(conversations.contactId, contact.id),
+                eq(conversations.campaignId, campaign.id)
               )
             )
             .limit(1);
-
           if (!conv) {
             await db.insert(conversations).values({
               userId: campaign.userId,
               contactId: contact.id,
+              campaignId: campaign.id,
               phoneNumberId: fromPhoneId,
               status: "unreplied",
               lastMessageAt: now,
               lastMessagePreview: messageBody.slice(0, 200),
               unreadCount: 0,
+              aiStage: "intro",
             });
             [conv] = await db
               .select()
@@ -940,7 +944,8 @@ export async function processCampaignBatches() {
               .where(
                 and(
                   eq(conversations.userId, campaign.userId),
-                  eq(conversations.contactId, contact.id)
+                  eq(conversations.contactId, contact.id),
+                  eq(conversations.campaignId, campaign.id)
                 )
               )
               .limit(1);

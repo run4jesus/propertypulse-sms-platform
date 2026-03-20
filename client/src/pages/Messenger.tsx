@@ -163,6 +163,14 @@ export default function Messenger() {
     { enabled: !!contactPhone, refetchInterval: 5000 }
   );
   const messages = unifiedMessages;
+  // Fetch campaign list for campaign divider labels in unified thread
+  const { data: campaignList } = trpc.campaigns.list.useQuery();
+  const campaignMap = new Map<number, string>();
+  if (campaignList) {
+    for (const c of campaignList) {
+      campaignMap.set(c.id, c.name);
+    }
+  }
 
   const sendMessage = trpc.messages.send.useMutation({
     onSuccess: () => {
@@ -639,16 +647,27 @@ export default function Messenger() {
               <div className="space-y-3 max-w-2xl mx-auto">
                 {messages.map((row, idx) => {
                   const msg = row.message;
-                  // Show a subtle divider when the sender phone number changes between messages
                   const prevRow = idx > 0 ? messages[idx - 1] : null;
-                  const senderChanged = prevRow && prevRow.phoneNumberId !== row.phoneNumberId && msg.direction === "outbound";
+                  // Show campaign divider when the campaign changes between messages
+                  const campaignChanged = prevRow && prevRow.campaignId !== row.campaignId;
+                  const campaignName = row.campaignId ? (campaignMap.get(row.campaignId) ?? `Campaign #${row.campaignId}`) : null;
                   return (
                     <>
-                      {senderChanged && (
-                        <div key={`divider-${msg.id}`} className="flex items-center gap-2 my-2">
+                      {campaignChanged && campaignName && (
+                        <div key={`campaign-divider-${msg.id}`} className="flex items-center gap-2 my-4">
                           <div className="flex-1 h-px bg-border" />
-                          <span className="text-xs text-muted-foreground px-2 whitespace-nowrap">
-                            Sent from a different number
+                          <span className="text-xs font-medium text-muted-foreground bg-muted/60 border border-border px-3 py-1 rounded-full whitespace-nowrap">
+                            📋 {campaignName}
+                          </span>
+                          <div className="flex-1 h-px bg-border" />
+                        </div>
+                      )}
+                      {/* First message — show campaign label at top of thread */}
+                      {idx === 0 && campaignName && (
+                        <div key={`campaign-start-${msg.id}`} className="flex items-center gap-2 mb-4">
+                          <div className="flex-1 h-px bg-border" />
+                          <span className="text-xs font-medium text-muted-foreground bg-muted/60 border border-border px-3 py-1 rounded-full whitespace-nowrap">
+                            📋 {campaignName}
                           </span>
                           <div className="flex-1 h-px bg-border" />
                         </div>

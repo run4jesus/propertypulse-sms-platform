@@ -157,10 +157,12 @@ export const conversations = mysqlTable("conversations", {
     "dnc",
     "no_answer",
   ]),
+   // Campaign that originated this conversation — each campaign gets its own
+  // conversation thread so the AI always starts fresh (clean aiStage = intro)
+  campaignId: int("campaignId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
-
 export type Conversation = typeof conversations.$inferSelect;
 export type ConversationDisposition = "interested" | "not_interested" | "wrong_number" | "callback_requested" | "under_contract" | "closed" | "dnc" | "no_answer";
 

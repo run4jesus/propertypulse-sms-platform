@@ -416,7 +416,7 @@ export async function getMessagesByContactPhone(userId: number, contactPhone: st
 
   // Find all conversations for these contacts
   const convRows = await db
-    .select({ id: conversations.id, phoneNumberId: conversations.phoneNumberId })
+    .select({ id: conversations.id, phoneNumberId: conversations.phoneNumberId, campaignId: conversations.campaignId })
     .from(conversations)
     .where(and(eq(conversations.userId, userId), inArray(conversations.contactId, contactIds)));
 
@@ -424,11 +424,13 @@ export async function getMessagesByContactPhone(userId: number, contactPhone: st
 
   const convIds = convRows.map((c) => c.id);
 
-  // Get all messages from all those conversations, with their conversation's phoneNumberId
+  // Get all messages from all those conversations, with their conversation's phoneNumberId and campaignId
   const rows = await db
     .select({
       message: messages,
       phoneNumberId: conversations.phoneNumberId,
+      campaignId: conversations.campaignId,
+      conversationId: conversations.id,
     })
     .from(messages)
     .innerJoin(conversations, eq(messages.conversationId, conversations.id))
