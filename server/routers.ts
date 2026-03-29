@@ -1276,6 +1276,23 @@ ${transcript}`,
         createdAt: c.createdAt,
       }));
     }),
+
+    activityFeed: protectedProcedure
+      .input(z.object({ type: z.string().optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        const { activityEvents } = await import("../drizzle/schema");
+        const { desc, eq, and: andOp } = await import("drizzle-orm");
+        const conditions: ReturnType<typeof eq>[] = [eq(activityEvents.userId, ctx.user.id)];
+        if (input?.type) conditions.push(eq(activityEvents.type, input.type));
+        const rows = await db!
+          .select()
+          .from(activityEvents)
+          .where(andOp(...conditions))
+          .orderBy(desc(activityEvents.createdAt))
+          .limit(100);
+        return rows.map((r: typeof activityEvents.$inferSelect) => ({ ...r, createdAt: r.createdAt.getTime() }));
+      }),
   }),
 
   // ─── Contact Groups ──────────────────────────────────────────────────────────

@@ -587,3 +587,14 @@ export const goals = mysqlTable("goals", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 export type Goal = typeof goals.$inferSelect;
+
+// ─── Activity Events ─────────────────────────────────────────────────────────
+export const activityEvents = mysqlTable("activityEvents", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("userId").notNull(),
+  type: varchar("type", { length: 50 }).notNull(), // campaign | message | lead | deal | system
+  description: text("description").notNull(),
+  eventName: varchar("eventName", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type ActivityEvent = typeof activityEvents.$inferSelect;

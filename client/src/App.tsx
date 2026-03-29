@@ -27,6 +27,12 @@ import TaskManager from "./pages/TaskManager";
 import PullCadence from "./pages/PullCadence";
 import DispositionDashboard from "./pages/DispositionDashboard";
 import KPIsDashboard from "./pages/KPIsDashboard";
+import ActivityFeed from "./pages/ActivityFeed";
+import DailyZero from "./pages/DailyZero";
+import DataDashboard from "./pages/DataDashboard";
+import MarketingDashboard from "./pages/MarketingDashboard";
+import Leads from "./pages/Leads";
+import DealTracker from "./pages/DealTracker";
 
 function Router() {
   return (
@@ -60,6 +66,14 @@ function Router() {
             <Route path="/cadence" component={PullCadence} />
             <Route path="/dispositions" component={DispositionDashboard} />
             <Route path="/kpis" component={KPIsDashboard} />
+            <Route path="/activity" component={ActivityFeed} />
+            <Route path="/daily-zero" component={DailyZero} />
+            <Route path="/data" component={DataDashboard} />
+            <Route path="/marketing" component={MarketingDashboard} />
+            <Route path="/leads" component={Leads} />
+            <Route path="/deal-tracker" component={DealTracker} />
+            <Route path="/lists" component={Contacts} />
+            <Route path="/contacts/import" component={Contacts} />
             <Route path="/404" component={NotFound} />
             <Route component={NotFound} />
           </Switch>

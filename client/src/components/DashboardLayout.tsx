@@ -26,14 +26,18 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
 import {
+  Activity,
   BarChart3,
   Ban,
   Bot,
   CalendarDays,
   ChevronDown,
+  ClipboardList,
+  Database,
   FileText,
   GitBranch,
   Hash,
+  Kanban,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -41,15 +45,21 @@ import {
   Phone,
   PhoneCall,
   Settings,
+  Star,
+  Table2,
+  Target,
+  TrendingUp,
+  Upload,
   Users,
   Users2,
   Zap,
-  Kanban,
   FileSignature,
   CheckSquare,
   Clock,
-  TrendingUp,
-  Target,
+  ListChecks,
+  Megaphone,
+  UserCheck,
+  Shuffle,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -59,53 +69,68 @@ import { toast } from "sonner";
 
 const menuGroups = [
   {
-    label: "Core",
+    label: "Command Center",
     items: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-      { icon: MessageSquare, label: "Messenger", path: "/messenger" },
-      { icon: CalendarDays, label: "Calendar", path: "/calendar" },
+      { icon: Activity, label: "Activity Feed", path: "/activity" },
+      { icon: Star, label: "Daily Zero", path: "/daily-zero" },
+      { icon: CheckSquare, label: "Task Manager", path: "/tasks" },
     ],
   },
   {
-    label: "Campaigns",
+    label: "Data Management",
     items: [
+      { icon: Database, label: "Data Dashboard", path: "/data" },
+      { icon: ClipboardList, label: "Lists", path: "/lists" },
+      { icon: Clock, label: "Cadence", path: "/cadence" },
+      { icon: Upload, label: "Import / Skip Trace", path: "/contacts/import" },
+    ],
+  },
+  {
+    label: "Marketing Management",
+    items: [
+      { icon: Megaphone, label: "Marketing Dashboard", path: "/marketing" },
+      { icon: UserCheck, label: "Leads", path: "/leads" },
       { icon: Zap, label: "Campaigns", path: "/campaigns" },
-      { icon: Hash, label: "Keywords", path: "/campaigns/keywords" },
-      { icon: GitBranch, label: "Workflows", path: "/workflows" },
-      { icon: FileText, label: "Templates", path: "/templates" },
+      { icon: Target, label: "KPIs", path: "/kpis" },
     ],
   },
   {
-    label: "Contacts",
-    items: [
-      { icon: Users, label: "Contacts", path: "/contacts" },
-      { icon: Users2, label: "Groups", path: "/contacts/groups" },
-      { icon: Ban, label: "Management", path: "/contacts/management" },
-    ],
-  },
-  {
-    label: "Acquisitions",
+    label: "Sales / Acquisitions",
     items: [
       { icon: Kanban, label: "Deal Pipeline", path: "/deals" },
-      { icon: FileSignature, label: "Contracts", path: "/contracts" },
-      { icon: TrendingUp, label: "Dispositions", path: "/dispositions" },
+      { icon: Table2, label: "Deal Tracker", path: "/deal-tracker" },
+      { icon: Users, label: "Contacts", path: "/contacts" },
     ],
   },
   {
-    label: "Operations",
+    label: "Dispositions",
     items: [
-      { icon: CheckSquare, label: "Task Manager", path: "/tasks" },
-      { icon: Clock, label: "Pull Cadence", path: "/cadence" },
-      { icon: Target, label: "KPIs", path: "/kpis" },
+      { icon: Shuffle, label: "Disposition Dashboard", path: "/dispositions" },
+    ],
+  },
+  {
+    label: "Contracts",
+    items: [
+      { icon: FileSignature, label: "Contract Manager", path: "/contracts" },
+    ],
+  },
+  {
+    label: "SMS Platform",
+    items: [
+      { icon: MessageSquare, label: "Messenger", path: "/messenger" },
+      { icon: FileText, label: "Templates", path: "/templates" },
+      { icon: Hash, label: "Keywords", path: "/campaigns/keywords" },
+      { icon: GitBranch, label: "Workflows", path: "/workflows" },
+      { icon: PhoneCall, label: "Phone Numbers", path: "/phone-numbers" },
     ],
   },
   {
     label: "Tools",
     items: [
-      { icon: Zap, label: "Macros", path: "/macros" },
       { icon: Phone, label: "Call Logs", path: "/calls" },
       { icon: BarChart3, label: "Reporting", path: "/reporting" },
-      { icon: PhoneCall, label: "Phone Numbers", path: "/phone-numbers" },
+      { icon: CalendarDays, label: "Calendar", path: "/calendar" },
       { icon: Settings, label: "Settings", path: "/settings" },
     ],
   },

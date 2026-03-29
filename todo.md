@@ -454,3 +454,23 @@
 - [ ] Update DashboardLayout sidebar with all new nav sections
 - [ ] Update App.tsx routes for all new pages
 - [ ] Messenger: "Add to Pipeline" button to create a deal from a conversation
+
+## BOS Integration (Full Platform Rebuild)
+- [ ] Reorganize DashboardLayout sidebar to match BOS section structure exactly
+- [ ] Build Command Center: BOS-style main Dashboard (greeting, 4 stat cards, tasks, goals, pipeline funnel, activity feed)
+- [ ] Build Activity Feed page (tabs: All, Campaigns; item cards with type badges)
+- [ ] Build Daily Zero page (3 metrics: Open Tasks, Unworked Leads, Unread Messages; streak tracker; Log Today's Zero)
+- [ ] Build Task Manager page (task list, add/complete/delete tasks, due dates, priority)
+- [ ] Build Data Dashboard page (stats: total contacts, lists, imports, skip traced)
+- [ ] Build Lists page (view/manage contact lists linked to existing contacts system)
+- [ ] Build Cadence page (pull schedule reminders by market and type)
+- [ ] Build Import/Skip Trace page (upload CSV, link to existing import flow)
+- [ ] Build Marketing Dashboard page (4 stat cards, House/Land channel cards, Lead Pipeline, Lead Tiers, Upcoming Pulls, Quick Actions)
+- [ ] Build Leads page (lead list with status, tier, source filters)
+- [ ] Wire Campaigns nav item to existing LotPulse campaigns page
+- [ ] Build KPIs page (monthly goals, conversion metrics, date range selector)
+- [ ] Build Deal Pipeline page (11-stage tabs, New Deal button, 4 stat cards, search)
+- [ ] Build Deal Tracker page (table view of all deals with stage, value, dates)
+- [ ] Wire Contacts nav item to existing LotPulse contacts page
+- [ ] Build Disposition Dashboard page (buyer activity, dispo status tracking)
+- [ ] Build Contract Manager page (6-status tabs, New Contract, 4 stat cards, search)
