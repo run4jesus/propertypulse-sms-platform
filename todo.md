@@ -433,3 +433,24 @@
 - [x] Update batch engine to check/enforce daily send cap
 - [x] Add Daily Send Cap field to campaign creation UI
 - [x] Add Daily Send Cap field to campaign edit/settings UI
+
+## BOS Business Operations Layer
+- [x] Schema: deals, contracts, tasks, pullCadences, dispositions, goals tables
+- [ ] DB helpers: getDeals, createDeal, updateDeal, getContracts, createContract, updateContract, getTasks, createTask, updateTask, getPullCadences, getDispositions, getGoals, getDailyZero
+- [ ] tRPC: deals router (list, create, update, delete, updateStage)
+- [ ] tRPC: contracts router (list, create, update, delete)
+- [ ] tRPC: tasks router (list, create, update, complete, delete)
+- [ ] tRPC: cadence router (list, create, update, markPulled)
+- [ ] tRPC: dispositions router (list, create, update)
+- [ ] tRPC: goals router (get, upsert)
+- [ ] Page: Deal Pipeline (11-stage kanban, new deal form, stage drag/click)
+- [ ] Page: Contract Manager (table, new contract form, status tracking)
+- [ ] Page: Task Manager (list, create, complete, priority/due date)
+- [ ] Page: Daily Zero (auto-populated from Needs Offer + pending tasks)
+- [ ] Page: Pull Cadence (schedule list, create/edit schedule, mark pulled)
+- [ ] Page: Disposition Dashboard (active deals in dispo, buyer tracking)
+- [ ] Page: KPIs Dashboard (monthly goals, conversion rates, revenue tracking)
+- [ ] Update Dashboard with full stats (active deals, pipeline value, tasks due)
+- [ ] Update DashboardLayout sidebar with all new nav sections
+- [ ] Update App.tsx routes for all new pages
+- [ ] Messenger: "Add to Pipeline" button to create a deal from a conversation

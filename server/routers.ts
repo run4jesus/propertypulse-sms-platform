@@ -98,6 +98,14 @@ import {
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
 import { getDb } from "./db";
+import {
+  getDeals, getDealById, createDeal, updateDeal, deleteDeal, getDealStats,
+  getContracts, getContractById, createContract, updateContract, deleteContract,
+  getTasks, getTaskById, createTask, updateTask, completeTask, deleteTask, getDailyZeroItems,
+  getPullCadences, createPullCadence, updatePullCadence, markPullCadencePulled, deletePullCadence,
+  getDispositions, getDispositionById, createDisposition, updateDisposition,
+  getGoal, upsertGoal,
+} from "./db-bos";
 import { and, eq, sql } from "drizzle-orm";
 import { contacts, contactManagement as contactManagementTable, contactListMembers, contactLists, phoneNumbers as phoneNumbersTable, litigatorNumbers as litigatorNumbersTable } from "../drizzle/schema";
 
@@ -1860,6 +1868,276 @@ ${transcript}`,
         neverScrubbed: rows.filter((r) => !r.lastScrubbedAt).length,
       };
     }),
+  }),
+
+  // ─── Deal Pipeline ─────────────────────────────────────────────────────────────
+  deals: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getDeals(ctx.user.id);
+    }),
+    stats: protectedProcedure.query(async ({ ctx }) => {
+      return getDealStats(ctx.user.id);
+    }),
+    create: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        propertyAddress: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        zip: z.string().optional(),
+        propertyType: z.enum(["sfr","land","multi_family","commercial","other"]).optional(),
+        stage: z.enum(["new_lead","contact_attempted","qualified","appointment_set","offer_made","under_contract","dispo_marketing","buyer_found","closing_scheduled","closed_paid","dead_lost"]).optional(),
+        sellerName: z.string().optional(),
+        sellerPhone: z.string().optional(),
+        sellerEmail: z.string().optional(),
+        askingPrice: z.number().optional(),
+        offerPrice: z.number().optional(),
+        contractPrice: z.number().optional(),
+        assignmentFee: z.number().optional(),
+        closingDate: z.date().optional(),
+        notes: z.string().optional(),
+        conversationId: z.number().optional(),
+        contactId: z.number().optional(),
+        isLead: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return createDeal(ctx.user.id, input);
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        propertyAddress: z.string().optional(),
+        city: z.string().optional(),
+        state: z.string().optional(),
+        zip: z.string().optional(),
+        propertyType: z.enum(["sfr","land","multi_family","commercial","other"]).optional(),
+        stage: z.enum(["new_lead","contact_attempted","qualified","appointment_set","offer_made","under_contract","dispo_marketing","buyer_found","closing_scheduled","closed_paid","dead_lost"]).optional(),
+        sellerName: z.string().optional(),
+        sellerPhone: z.string().optional(),
+        sellerEmail: z.string().optional(),
+        askingPrice: z.number().optional(),
+        offerPrice: z.number().optional(),
+        contractPrice: z.number().optional(),
+        assignmentFee: z.number().optional(),
+        closingDate: z.date().optional(),
+        notes: z.string().optional(),
+        isLead: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        return updateDeal(ctx.user.id, id, data);
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteDeal(ctx.user.id, input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Contracts ───────────────────────────────────────────────────────────────
+  contracts: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getContracts(ctx.user.id);
+    }),
+    create: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        dealId: z.number().optional(),
+        contractType: z.enum(["purchase_agreement","assignment","double_close","other"]).optional(),
+        sellerName: z.string().optional(),
+        buyerName: z.string().optional(),
+        propertyAddress: z.string().optional(),
+        contractPrice: z.number().optional(),
+        assignmentFee: z.number().optional(),
+        closingDate: z.date().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return createContract(ctx.user.id, input);
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        dealId: z.number().optional(),
+        contractType: z.enum(["purchase_agreement","assignment","double_close","other"]).optional(),
+        status: z.enum(["draft","sent","signed","executed","expired","cancelled"]).optional(),
+        sellerName: z.string().optional(),
+        buyerName: z.string().optional(),
+        propertyAddress: z.string().optional(),
+        contractPrice: z.number().optional(),
+        assignmentFee: z.number().optional(),
+        closingDate: z.date().optional(),
+        sentAt: z.date().optional(),
+        signedAt: z.date().optional(),
+        executedAt: z.date().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        return updateContract(ctx.user.id, id, data);
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteContract(ctx.user.id, input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Tasks ───────────────────────────────────────────────────────────────────
+  tasks: router({
+    list: protectedProcedure
+      .input(z.object({ status: z.string().optional() }))
+      .query(async ({ ctx, input }) => {
+        return getTasks(ctx.user.id, input.status);
+      }),
+    dailyZero: protectedProcedure.query(async ({ ctx }) => {
+      return getDailyZeroItems(ctx.user.id);
+    }),
+    create: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1),
+        description: z.string().optional(),
+        taskType: z.enum(["manual","needs_offer","follow_up","contract","dispo"]).optional(),
+        priority: z.enum(["low","medium","high"]).optional(),
+        dueDate: z.date().optional(),
+        relatedDealId: z.number().optional(),
+        relatedConversationId: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return createTask(ctx.user.id, input);
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        status: z.enum(["pending","in_progress","completed","cancelled"]).optional(),
+        priority: z.enum(["low","medium","high"]).optional(),
+        dueDate: z.date().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        return updateTask(ctx.user.id, id, data);
+      }),
+    complete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await completeTask(ctx.user.id, input.id);
+        return { success: true };
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteTask(ctx.user.id, input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Pull Cadence ─────────────────────────────────────────────────────────────
+  cadence: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getPullCadences(ctx.user.id);
+    }),
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        market: z.string().min(1),
+        propertyType: z.string().min(1),
+        dataSource: z.string().optional(),
+        frequencyDays: z.number().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return createPullCadence(ctx.user.id, input);
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        market: z.string().optional(),
+        propertyType: z.string().optional(),
+        dataSource: z.string().optional(),
+        frequencyDays: z.number().optional(),
+        status: z.enum(["active","paused"]).optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        return updatePullCadence(ctx.user.id, id, data);
+      }),
+    markPulled: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        return markPullCadencePulled(ctx.user.id, input.id);
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deletePullCadence(ctx.user.id, input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Dispositions ─────────────────────────────────────────────────────────────
+  dispositions: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getDispositions(ctx.user.id);
+    }),
+    create: protectedProcedure
+      .input(z.object({
+        dealId: z.number(),
+        buyerName: z.string().optional(),
+        buyerEmail: z.string().optional(),
+        buyerPhone: z.string().optional(),
+        listPrice: z.number().optional(),
+        salePrice: z.number().optional(),
+        assignmentFee: z.number().optional(),
+        marketingNotes: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        return createDisposition(ctx.user.id, input);
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        buyerName: z.string().optional(),
+        buyerEmail: z.string().optional(),
+        buyerPhone: z.string().optional(),
+        listPrice: z.number().optional(),
+        salePrice: z.number().optional(),
+        assignmentFee: z.number().optional(),
+        status: z.enum(["marketing","buyer_found","under_contract","closed"]).optional(),
+        marketingNotes: z.string().optional(),
+        closedAt: z.date().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { id, ...data } = input;
+        return updateDisposition(ctx.user.id, id, data);
+      }),
+  }),
+
+  // ─── Goals / KPIs ─────────────────────────────────────────────────────────────
+  goals: router({
+    get: protectedProcedure
+      .input(z.object({ month: z.number(), year: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return getGoal(ctx.user.id, input.month, input.year);
+      }),
+    upsert: protectedProcedure
+      .input(z.object({
+        month: z.number(),
+        year: z.number(),
+        targetDeals: z.number().optional(),
+        targetRevenue: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { month, year, ...data } = input;
+        return upsertGoal(ctx.user.id, month, year, data);
+      }),
   }),
 
   // ─── Twilio Webhook (public) ──────────────────────────────────────────────────

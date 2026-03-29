@@ -465,3 +465,125 @@ export const litigatorNumbers = mysqlTable("litigator_numbers", {
   uploadedAt: timestamp("uploadedAt").defaultNow().notNull(),
 });
 export type LitigatorNumber = typeof litigatorNumbers.$inferSelect;
+
+// ─── Deal Pipeline ────────────────────────────────────────────────────────────
+export const deals = mysqlTable("deals", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  propertyAddress: varchar("propertyAddress", { length: 500 }),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 50 }),
+  zip: varchar("zip", { length: 20 }),
+  propertyType: mysqlEnum("propertyType", ["sfr", "land", "multi_family", "commercial", "other"]).default("sfr"),
+  stage: mysqlEnum("stage", [
+    "new_lead", "contact_attempted", "qualified", "appointment_set",
+    "offer_made", "under_contract", "dispo_marketing", "buyer_found",
+    "closing_scheduled", "closed_paid", "dead_lost"
+  ]).default("new_lead").notNull(),
+  sellerName: varchar("sellerName", { length: 255 }),
+  sellerPhone: varchar("sellerPhone", { length: 20 }),
+  sellerEmail: varchar("sellerEmail", { length: 255 }),
+  askingPrice: int("askingPrice"),
+  offerPrice: int("offerPrice"),
+  contractPrice: int("contractPrice"),
+  assignmentFee: int("assignmentFee"),
+  closingDate: timestamp("closingDate"),
+  notes: text("notes"),
+  conversationId: int("conversationId"),
+  contactId: int("contactId"),
+  isLead: boolean("isLead").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Deal = typeof deals.$inferSelect;
+
+// ─── Contracts ────────────────────────────────────────────────────────────────
+export const contracts = mysqlTable("contracts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  dealId: int("dealId"),
+  title: varchar("title", { length: 255 }).notNull(),
+  contractType: mysqlEnum("contractType", ["purchase_agreement", "assignment", "double_close", "other"]).default("purchase_agreement").notNull(),
+  status: mysqlEnum("status", ["draft", "sent", "signed", "executed", "expired", "cancelled"]).default("draft").notNull(),
+  sellerName: varchar("sellerName", { length: 255 }),
+  buyerName: varchar("buyerName", { length: 255 }),
+  propertyAddress: varchar("propertyAddress", { length: 500 }),
+  contractPrice: int("contractPrice"),
+  assignmentFee: int("assignmentFee"),
+  closingDate: timestamp("closingDate"),
+  sentAt: timestamp("sentAt"),
+  signedAt: timestamp("signedAt"),
+  executedAt: timestamp("executedAt"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Contract = typeof contracts.$inferSelect;
+
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+export const tasks = mysqlTable("tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  taskType: mysqlEnum("taskType", ["manual", "needs_offer", "follow_up", "contract", "dispo"]).default("manual").notNull(),
+  status: mysqlEnum("status", ["pending", "in_progress", "completed", "cancelled"]).default("pending").notNull(),
+  priority: mysqlEnum("priority", ["low", "medium", "high"]).default("medium").notNull(),
+  dueDate: timestamp("dueDate"),
+  completedAt: timestamp("completedAt"),
+  relatedDealId: int("relatedDealId"),
+  relatedConversationId: int("relatedConversationId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Task = typeof tasks.$inferSelect;
+
+// ─── Pull Cadence ─────────────────────────────────────────────────────────────
+export const pullCadences = mysqlTable("pull_cadences", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  market: varchar("market", { length: 255 }).notNull(),
+  propertyType: varchar("propertyType", { length: 100 }).notNull(),
+  dataSource: varchar("dataSource", { length: 255 }),
+  frequencyDays: int("frequencyDays").default(7).notNull(),
+  lastPulledAt: timestamp("lastPulledAt"),
+  nextDueAt: timestamp("nextDueAt"),
+  status: mysqlEnum("status", ["active", "paused"]).default("active").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PullCadence = typeof pullCadences.$inferSelect;
+
+// ─── Disposition ──────────────────────────────────────────────────────────────
+export const dispositions = mysqlTable("dispositions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  dealId: int("dealId").notNull(),
+  buyerName: varchar("buyerName", { length: 255 }),
+  buyerEmail: varchar("buyerEmail", { length: 255 }),
+  buyerPhone: varchar("buyerPhone", { length: 20 }),
+  listPrice: int("listPrice"),
+  salePrice: int("salePrice"),
+  assignmentFee: int("assignmentFee"),
+  status: mysqlEnum("status", ["marketing", "buyer_found", "under_contract", "closed"]).default("marketing").notNull(),
+  marketingNotes: text("marketingNotes"),
+  closedAt: timestamp("closedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Disposition = typeof dispositions.$inferSelect;
+
+// ─── Goals / KPIs ─────────────────────────────────────────────────────────────
+export const goals = mysqlTable("goals", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  month: int("month").notNull(),
+  year: int("year").notNull(),
+  targetDeals: int("targetDeals").default(0).notNull(),
+  targetRevenue: int("targetRevenue").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Goal = typeof goals.$inferSelect;

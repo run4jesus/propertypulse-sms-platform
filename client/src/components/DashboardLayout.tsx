@@ -44,6 +44,12 @@ import {
   Users,
   Users2,
   Zap,
+  Kanban,
+  FileSignature,
+  CheckSquare,
+  Clock,
+  TrendingUp,
+  Target,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -75,6 +81,22 @@ const menuGroups = [
       { icon: Users, label: "Contacts", path: "/contacts" },
       { icon: Users2, label: "Groups", path: "/contacts/groups" },
       { icon: Ban, label: "Management", path: "/contacts/management" },
+    ],
+  },
+  {
+    label: "Acquisitions",
+    items: [
+      { icon: Kanban, label: "Deal Pipeline", path: "/deals" },
+      { icon: FileSignature, label: "Contracts", path: "/contracts" },
+      { icon: TrendingUp, label: "Dispositions", path: "/dispositions" },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { icon: CheckSquare, label: "Task Manager", path: "/tasks" },
+      { icon: Clock, label: "Pull Cadence", path: "/cadence" },
+      { icon: Target, label: "KPIs", path: "/kpis" },
     ],
   },
   {

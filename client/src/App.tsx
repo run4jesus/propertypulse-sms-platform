@@ -21,6 +21,12 @@ import PhoneNumbers from "./pages/PhoneNumbers";
 import Macros from "./pages/Macros";
 import Calendar from "./pages/Calendar";
 import SendQueue from "./pages/SendQueue";
+import DealPipeline from "./pages/DealPipeline";
+import ContractManager from "./pages/ContractManager";
+import TaskManager from "./pages/TaskManager";
+import PullCadence from "./pages/PullCadence";
+import DispositionDashboard from "./pages/DispositionDashboard";
+import KPIsDashboard from "./pages/KPIsDashboard";
 
 function Router() {
   return (
@@ -48,6 +54,12 @@ function Router() {
             <Route path="/templates" component={Templates} />
             <Route path="/phone-numbers" component={PhoneNumbers} />
             <Route path="/settings" component={Settings} />
+            <Route path="/deals" component={DealPipeline} />
+            <Route path="/contracts" component={ContractManager} />
+            <Route path="/tasks" component={TaskManager} />
+            <Route path="/cadence" component={PullCadence} />
+            <Route path="/dispositions" component={DispositionDashboard} />
+            <Route path="/kpis" component={KPIsDashboard} />
             <Route path="/404" component={NotFound} />
             <Route component={NotFound} />
           </Switch>
