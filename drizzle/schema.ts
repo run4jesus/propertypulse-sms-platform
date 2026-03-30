@@ -86,10 +86,26 @@ export const contacts = mysqlTable("contacts", {
   city: varchar("city", { length: 100 }),
   state: varchar("state", { length: 50 }),
   zip: varchar("zip", { length: 20 }),
+  // Owner 2 (co-owner / spouse)
+  owner2FirstName: varchar("owner2FirstName", { length: 100 }),
+  owner2LastName: varchar("owner2LastName", { length: 100 }),
+  // Property address
   propertyAddress: text("propertyAddress"),
   propertyCity: varchar("propertyCity", { length: 100 }),
   propertyState: varchar("propertyState", { length: 50 }),
   propertyZip: varchar("propertyZip", { length: 10 }),
+  // Mailing address (where to send mail — may differ from property)
+  mailingAddress: text("mailingAddress"),
+  mailingCity: varchar("mailingCity", { length: 100 }),
+  mailingState: varchar("mailingState", { length: 50 }),
+  mailingZip: varchar("mailingZip", { length: 10 }),
+  // Additional phone numbers (phone = phone1, the primary)
+  phone2: varchar("phone2", { length: 20 }),
+  phone3: varchar("phone3", { length: 20 }),
+  // Per-phone SMS marketing status — tracks remarketing and re-skip tracing needs
+  phone1Status: mysqlEnum("phone1Status", ["untouched", "messaged", "replied", "opted_out", "dnc", "needs_reskip"]).default("untouched").notNull(),
+  phone2Status: mysqlEnum("phone2Status", ["untouched", "messaged", "replied", "opted_out", "dnc", "needs_reskip"]).default("untouched").notNull(),
+  phone3Status: mysqlEnum("phone3Status", ["untouched", "messaged", "replied", "opted_out", "dnc", "needs_reskip"]).default("untouched").notNull(),
   notes: text("notes"),
   optedOut: boolean("optedOut").default(false).notNull(),
   // DNC / Litigator scrub results

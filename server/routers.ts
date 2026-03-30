@@ -94,6 +94,8 @@ import {
   updateUserTwilio,
   updateUserPodio,
   updateWorkflow,
+  getListMembers,
+  updateContactPhoneStatus,
 } from "./db";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
@@ -362,6 +364,29 @@ export const appRouter = router({
         await createContactList(ctx.user.id, input.name, input.description);
         return { success: true };
       }),
+
+    getMembers: protectedProcedure
+      .input(z.object({
+        listId: z.number(),
+        search: z.string().optional(),
+        phoneStatus: z.string().optional(),
+        limit: z.number().optional(),
+        offset: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        return getListMembers(input.listId, ctx.user.id, input);
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { success: false };
+        // Remove all list members first, then the list
+        await db.delete(contactListMembers).where(eq(contactListMembers.listId, input.id));
+        await db.delete(contactLists).where(and(eq(contactLists.id, input.id), eq(contactLists.userId, ctx.user.id)));
+        return { success: true };
+      }),
   }),
 
   // ─── Contacts ───────────────────────────────────────────────────────────────
@@ -430,18 +455,33 @@ export const appRouter = router({
     bulkImport: protectedProcedure
       .input(z.object({
         contacts: z.array(z.object({
+          // Owner 1
           firstName: z.string().optional(),
           lastName: z.string().optional(),
+          // Owner 2
+          owner2FirstName: z.string().optional(),
+          owner2LastName: z.string().optional(),
+          // Property address
+          propertyAddress: z.string().optional(),
+          propertyCity: z.string().optional(),
+          propertyState: z.string().optional(),
+          propertyZip: z.string().optional(),
+          // Mailing address
+          mailingAddress: z.string().optional(),
+          mailingCity: z.string().optional(),
+          mailingState: z.string().optional(),
+          mailingZip: z.string().optional(),
+          // Phone numbers
           phone: z.string(),
+          phone2: z.string().optional(),
+          phone3: z.string().optional(),
+          // Legacy / misc
           email: z.string().optional(),
           address: z.string().optional(),
           city: z.string().optional(),
           state: z.string().optional(),
           zip: z.string().optional(),
-          propertyAddress: z.string().optional(),
-          propertyCity: z.string().optional(),
-          propertyState: z.string().optional(),
-          propertyZip: z.string().optional(),
+          notes: z.string().optional(),
         })),
         listId: z.number().optional(),
       }))
@@ -509,6 +549,17 @@ export const appRouter = router({
       .input(z.object({ contactId: z.number(), listId: z.number() }))
       .mutation(async ({ ctx, input }) => {
         await addContactToList(input.contactId, input.listId);
+        return { success: true };
+      }),
+
+    updatePhoneStatus: protectedProcedure
+      .input(z.object({
+        contactId: z.number(),
+        phoneSlot: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+        status: z.enum(["untouched", "messaged", "replied", "opted_out", "dnc", "needs_reskip"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await updateContactPhoneStatus(input.contactId, ctx.user.id, input.phoneSlot, input.status);
         return { success: true };
       }),
   }),

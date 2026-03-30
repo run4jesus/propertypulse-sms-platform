@@ -480,3 +480,20 @@
 - [x] Add empathy handling to price_ask stage prompt
 - [x] Improve Needs Offer detection — add more trigger phrases
 - [x] Add emotional situation as fast-track to needs_offer for VA to handle
+
+## Lists Upgrade — Full Field Mapping + Phone Status Tracking
+- [x] Schema: add owner2FirstName, owner2LastName to contacts table
+- [x] Schema: add mailingAddress, mailingCity, mailingState, mailingZip to contacts table
+- [x] Schema: add phone2, phone3 to contacts table
+- [x] Schema: add phone1Status, phone2Status, phone3Status (enum: untouched/messaged/replied/opted_out/dnc/needs_reskip) to contacts table
+- [x] Push schema migration (pnpm db:push)
+- [x] Backend: update bulkImport to accept all new fields
+- [x] Backend: add contactLists.getMembers procedure (returns contacts in list with phone statuses)
+- [x] Backend: add contacts.updatePhoneStatus mutation
+- [ ] Backend: auto-update phone1Status to 'messaged' when outbound SMS sent to that number
+- [ ] Backend: auto-update phone1Status to 'replied' when inbound SMS received from that number
+- [x] Frontend: build dedicated /lists page with list cards and upload modal
+- [x] Frontend: CSV field mapper with all 14 columns (owner1 first/last, owner2 first/last, property addr/city/state/zip, mailing addr/city/state/zip, phone1/2/3)
+- [x] Frontend: list detail drill-down with per-contact rows and color-coded phone status badges
+- [x] Frontend: "Needs Re-Skip" filter to surface contacts where all phones are dead/opted-out/dnc
+- [x] Update App.tsx to route /lists to new Lists page

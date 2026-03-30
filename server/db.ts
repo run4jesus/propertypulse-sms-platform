@@ -183,6 +183,71 @@ export async function createContactList(userId: number, name: string, descriptio
   return result;
 }
 
+export async function getListMembers(
+  listId: number,
+  userId: number,
+  opts?: { search?: string; phoneStatus?: string; limit?: number; offset?: number }
+) {
+  const db = await getDb();
+  if (!db) return { contacts: [], total: 0 };
+
+  const limit = opts?.limit ?? 100;
+  const offset = opts?.offset ?? 0;
+
+  const conditions = [
+    eq(contactListMembers.listId, listId),
+    eq(contacts.userId, userId),
+  ];
+
+  if (opts?.search) {
+    const s = `%${opts.search}%`;
+    conditions.push(
+      sql`(${contacts.firstName} like ${s} OR ${contacts.lastName} like ${s} OR ${contacts.phone} like ${s} OR ${contacts.propertyAddress} like ${s})`
+    );
+  }
+
+  if (opts?.phoneStatus) {
+    conditions.push(
+      sql`(${contacts.phone1Status} = ${opts.phoneStatus} OR ${contacts.phone2Status} = ${opts.phoneStatus} OR ${contacts.phone3Status} = ${opts.phoneStatus})`
+    );
+  }
+
+  const rows = await db
+    .select({ contact: contacts })
+    .from(contactListMembers)
+    .innerJoin(contacts, eq(contactListMembers.contactId, contacts.id))
+    .where(and(...conditions))
+    .limit(limit)
+    .offset(offset)
+    .orderBy(desc(contacts.createdAt));
+
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(contactListMembers)
+    .innerJoin(contacts, eq(contactListMembers.contactId, contacts.id))
+    .where(and(...conditions));
+
+  return {
+    contacts: rows.map((r) => r.contact),
+    total: countResult[0]?.count ?? 0,
+  };
+}
+
+export async function updateContactPhoneStatus(
+  contactId: number,
+  userId: number,
+  phoneSlot: 1 | 2 | 3,
+  status: "untouched" | "messaged" | "replied" | "opted_out" | "dnc" | "needs_reskip"
+) {
+  const db = await getDb();
+  if (!db) return;
+  const field =
+    phoneSlot === 1 ? contacts.phone1Status
+    : phoneSlot === 2 ? contacts.phone2Status
+    : contacts.phone3Status;
+  await db.update(contacts).set({ [field.name]: status }).where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)));
+}
+
 // ─── Contacts ─────────────────────────────────────────────────────────────────
 export async function getContacts(userId: number, opts?: { search?: string; labelId?: number; listId?: number; limit?: number; offset?: number }) {
   const db = await getDb();

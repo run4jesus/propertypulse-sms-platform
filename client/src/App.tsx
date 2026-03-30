@@ -33,6 +33,7 @@ import DataDashboard from "./pages/DataDashboard";
 import MarketingDashboard from "./pages/MarketingDashboard";
 import Leads from "./pages/Leads";
 import DealTracker from "./pages/DealTracker";
+import Lists from "./pages/Lists";
 
 function Router() {
   return (
@@ -72,7 +73,7 @@ function Router() {
             <Route path="/marketing" component={MarketingDashboard} />
             <Route path="/leads" component={Leads} />
             <Route path="/deal-tracker" component={DealTracker} />
-            <Route path="/lists" component={Contacts} />
+            <Route path="/lists" component={Lists} />
             <Route path="/contacts/import" component={Contacts} />
             <Route path="/404" component={NotFound} />
             <Route component={NotFound} />
