@@ -474,3 +474,9 @@
 - [ ] Wire Contacts nav item to existing LotPulse contacts page
 - [ ] Build Disposition Dashboard page (buyer activity, dispo status tracking)
 - [ ] Build Contract Manager page (6-status tabs, New Contract, 4 stat cards, search)
+
+## AI Empathy & Needs Offer Tuning
+- [x] Add empathy handling to intro stage prompt (death, divorce, hardship, illness)
+- [x] Add empathy handling to price_ask stage prompt
+- [x] Improve Needs Offer detection — add more trigger phrases
+- [x] Add emotional situation as fast-track to needs_offer for VA to handle
