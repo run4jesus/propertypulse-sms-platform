@@ -767,6 +767,68 @@ export const appRouter = router({
           .orderBy(convsTable.lastMessageAt);
         return linked;
       }),
+
+    // ─── Property timeline: all messages across all convos for same address ───────────────────────────────────────────────────
+    getPropertyTimeline: protectedProcedure
+      .input(z.object({ conversationId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const { conversations: convsTable, contacts: contactsTable, messages: messagesTable } = await import("../drizzle/schema");
+        const { eq, and, ne, asc } = await import("drizzle-orm");
+
+        // Get current conversation + contact
+        const [conv] = await db.select().from(convsTable).where(eq(convsTable.id, input.conversationId)).limit(1);
+        if (!conv || conv.userId !== ctx.user.id) return [];
+        const [contact] = await db.select().from(contactsTable).where(eq(contactsTable.id, conv.contactId)).limit(1);
+        const propAddr = (contact as any)?.propertyAddress;
+
+        // Collect all conversation IDs for this property (current + linked)
+        let allConvIds: number[] = [input.conversationId];
+        if (propAddr && propAddr.trim() !== "") {
+          const linked = await db
+            .select({ id: convsTable.id })
+            .from(convsTable)
+            .innerJoin(contactsTable, eq(convsTable.contactId, contactsTable.id))
+            .where(and(
+              eq(convsTable.userId, ctx.user.id),
+              ne(convsTable.id, input.conversationId),
+              eq((contactsTable as any).propertyAddress, propAddr)
+            ));
+          allConvIds = [input.conversationId, ...linked.map(l => l.id)];
+        }
+
+        // Load all conversations with their contact metadata
+        const convDetails = await Promise.all(
+          allConvIds.map(async (cid) => {
+            const [c] = await db.select().from(convsTable).where(eq(convsTable.id, cid)).limit(1);
+            const [ct] = await db.select().from(contactsTable).where(eq(contactsTable.id, c.contactId)).limit(1);
+            const msgs = await db.select().from(messagesTable).where(eq(messagesTable.conversationId, cid)).orderBy(asc(messagesTable.createdAt));
+            return {
+              conversationId: cid,
+              isCurrent: cid === input.conversationId,
+              contactFirstName: ct?.firstName ?? "",
+              contactLastName: ct?.lastName ?? "",
+              contactPhone: ct?.phone ?? "",
+              aiStage: (c as any)?.aiStage ?? null,
+              disposition: c?.disposition ?? null,
+              status: c?.status ?? null,
+              firstMessageAt: msgs[0]?.createdAt ?? c?.lastMessageAt ?? null,
+              lastMessageAt: c?.lastMessageAt ?? null,
+              messages: msgs,
+            };
+          })
+        );
+
+        // Sort conversation groups chronologically by first message date
+        convDetails.sort((a, b) => {
+          const aTime = a.firstMessageAt ? new Date(a.firstMessageAt).getTime() : 0;
+          const bTime = b.firstMessageAt ? new Date(b.firstMessageAt).getTime() : 0;
+          return aTime - bTime;
+        });
+
+        return convDetails;
+      }),
   }),
 
   // ─── Messages ────────────────────────────────────────────────────────────────

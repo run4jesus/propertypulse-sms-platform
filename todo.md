@@ -512,3 +512,8 @@
 - [x] Backend: add conversations.getLinked procedure (find all conversations sharing same propertyAddress, excluding current)
 - [x] Frontend: Prior Contact amber badge in Messenger conversation header when linked convos exist
 - [x] Frontend: Linked Conversations collapsible panel in Messenger right sidebar showing all prior threads on same address
+
+## Messenger — Unified Property Timeline
+- [x] Backend: add conversations.getPropertyTimeline procedure (all messages across all linked convos for same address, sorted chronologically, grouped by conversation with metadata)
+- [x] Frontend: replace linked conversations panel with unified scrollable timeline in message thread — dated dividers between each conversation attempt showing contact name, phone, and date range
+- [x] Frontend: remove old linked conversations collapsible panel (replaced by inline timeline)
