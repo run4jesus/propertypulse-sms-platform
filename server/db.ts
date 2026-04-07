@@ -29,6 +29,8 @@ import {
   type InsertCampaign,
   type InsertContact,
   type InsertMessage,
+  costEntries,
+  type CostEntry,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1070,4 +1072,44 @@ export async function getReportingStats(
     standardCampaigns: standardCampaigns?.count ?? 0,
     keywordCampaigns: kwCampaigns?.count ?? 0,
   };
+}
+
+// ─── Cost Entries ─────────────────────────────────────────────────────────────
+export async function getCostEntries(userId: number, month: number, year: number): Promise<CostEntry[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(costEntries)
+    .where(and(eq(costEntries.userId, userId), eq(costEntries.month, month), eq(costEntries.year, year)))
+    .orderBy(costEntries.category, costEntries.label);
+}
+
+export async function upsertCostEntry(
+  userId: number,
+  data: { id?: number; month: number; year: number; category: string; label: string; amount: number }
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  if (data.id) {
+    await db
+      .update(costEntries)
+      .set({ category: data.category, label: data.label, amount: data.amount })
+      .where(and(eq(costEntries.id, data.id), eq(costEntries.userId, userId)));
+  } else {
+    await db.insert(costEntries).values({
+      userId,
+      month: data.month,
+      year: data.year,
+      category: data.category,
+      label: data.label,
+      amount: data.amount,
+    });
+  }
+}
+
+export async function deleteCostEntry(id: number, userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(costEntries).where(and(eq(costEntries.id, id), eq(costEntries.userId, userId)));
 }

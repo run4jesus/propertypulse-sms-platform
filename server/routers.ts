@@ -96,6 +96,9 @@ import {
   updateWorkflow,
   getListMembers,
   updateContactPhoneStatus,
+  getCostEntries,
+  upsertCostEntry,
+  deleteCostEntry,
 } from "./db";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
@@ -2208,7 +2211,82 @@ ${transcript}`,
       }),
   }),
 
-  // ─── Twilio Webhook (public) ──────────────────────────────────────────────────
+  // ─── KPI Cost Tracking ──────────────────────────────────────────────────────────
+  kpis: router({
+    getCosts: protectedProcedure
+      .input(z.object({ month: z.number(), year: z.number() }))
+      .query(async ({ ctx, input }) => {
+        return getCostEntries(ctx.user.id, input.month, input.year);
+      }),
+
+    upsertCost: protectedProcedure
+      .input(z.object({
+        id: z.number().optional(),
+        month: z.number(),
+        year: z.number(),
+        category: z.enum(["va", "software", "data", "other"]),
+        label: z.string().min(1),
+        amount: z.number().min(0), // dollars (will be stored as cents)
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await upsertCostEntry(ctx.user.id, {
+          ...input,
+          amount: Math.round(input.amount * 100), // convert to cents
+        });
+        return { success: true };
+      }),
+
+    deleteCost: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        await deleteCostEntry(input.id, ctx.user.id);
+        return { success: true };
+      }),
+
+    getMetrics: protectedProcedure
+      .input(z.object({ month: z.number(), year: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const [costs, dealStats, dashStats] = await Promise.all([
+          getCostEntries(ctx.user.id, input.month, input.year),
+          getDealStats(ctx.user.id),
+          getDashboardStats(ctx.user.id),
+        ]);
+
+        // Total spend in dollars
+        const totalSpendCents = costs.reduce((sum, c) => sum + c.amount, 0);
+        const totalSpend = totalSpendCents / 100;
+
+        // Spend by category
+        const byCategory = costs.reduce((acc, c) => {
+          acc[c.category] = (acc[c.category] ?? 0) + c.amount / 100;
+          return acc;
+        }, {} as Record<string, number>);
+
+        // Leads = needsOffer + leadsPushed (contacts that raised their hand)
+        const leads = (dashStats?.needsOffer ?? 0) + (dashStats?.leadsPushed ?? 0);
+        const deals = dealStats?.closedDeals ?? 0;
+        const revenue = dealStats?.totalRevenue ?? 0;
+
+        const costPerLead = leads > 0 ? totalSpend / leads : null;
+        const costPerDeal = deals > 0 ? totalSpend / deals : null;
+        const leadsToDealRate = leads > 0 ? (deals / leads) * 100 : null;
+        const roi = totalSpend > 0 ? ((revenue - totalSpend) / totalSpend) * 100 : null;
+
+        return {
+          totalSpend,
+          byCategory,
+          leads,
+          deals,
+          revenue,
+          costPerLead,
+          costPerDeal,
+          leadsToDealRate,
+          roi,
+        };
+      }),
+  }),
+
+  // ─── Twilio Webhook (public) ────────────────────────────────────────────────────────────
   twilio: router({
     inboundWebhook: publicProcedure
       .input(z.object({ From: z.string(), To: z.string(), Body: z.string(), MessageSid: z.string() }))

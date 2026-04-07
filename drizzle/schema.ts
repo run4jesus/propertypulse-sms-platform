@@ -614,3 +614,17 @@ export const activityEvents = mysqlTable("activityEvents", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 export type ActivityEvent = typeof activityEvents.$inferSelect;
+
+// ─── Cost Entries ─────────────────────────────────────────────────────────────
+export const costEntries = mysqlTable("costEntries", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("userId").notNull(),
+  month: int("month").notNull(),       // 1–12
+  year: int("year").notNull(),
+  category: varchar("category", { length: 50 }).notNull(), // va | software | data | other
+  label: varchar("label", { length: 255 }).notNull(),      // e.g. "BatchSkipTracing", "VA - Maria"
+  amount: int("amount").notNull(),                          // stored in cents
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CostEntry = typeof costEntries.$inferSelect;

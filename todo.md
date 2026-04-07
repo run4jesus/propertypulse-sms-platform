@@ -497,3 +497,13 @@
 - [x] Frontend: list detail drill-down with per-contact rows and color-coded phone status badges
 - [x] Frontend: "Needs Re-Skip" filter to surface contacts where all phones are dead/opted-out/dnc
 - [x] Update App.tsx to route /lists to new Lists page
+
+## KPIs — Cost Tracking & New Metrics
+- [x] Schema: add costEntries table (id, userId, month, year, category: va/software/data/other, label, amount, createdAt)
+- [x] Push schema migration via SQL
+- [x] Backend: add getCostEntries, upsertCostEntry, deleteCostEntry db helpers
+- [x] Backend: add kpis.getCosts, kpis.upsertCost, kpis.deleteCost tRPC procedures
+- [x] Backend: add kpis.getMetrics procedure (cost per lead, cost per deal, leads-to-deal ratio, total spend)
+- [x] Frontend: add Cost Tracking panel to KPIs page (categorized entries: VA, Software, Data, Other)
+- [x] Frontend: add new KPI metric cards (Cost Per Lead, Cost Per Deal, Leads-to-Deal %, Total Monthly Spend, ROI)
+- [x] Frontend: wire month/year selector to cost entries so costs are tracked per period
