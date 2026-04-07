@@ -27,7 +27,10 @@ import {
   MessageSquare,
   RefreshCw,
   Zap,
+  Link2,
+  ChevronRight,
 } from "lucide-react";
+import { useLocation } from "wouter";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "wouter";
 import { toast } from "sonner";
@@ -268,6 +271,14 @@ export default function Messenger() {
   const aiSuggestion = selectedConv?.aiSuggestion;
   const convLabels = selectedConv?.labels ?? [];
 
+  // Linked conversations — same property address, different contact/number
+  const [, navigate] = useLocation();
+  const [linkedOpen, setLinkedOpen] = useState(false);
+  const { data: linkedConvs = [] } = trpc.conversations.getLinked.useQuery(
+    { conversationId: selectedId! },
+    { enabled: !!selectedId }
+  );
+
   const contactName = contact
     ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") || contact.phone
     : "";
@@ -460,8 +471,17 @@ export default function Messenger() {
                     <p className="text-sm font-semibold leading-none">{contactName}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{contact?.phone}</p>
                   </div>
-                  {/* Labels */}
+                  {/* Labels + Prior Contact badge */}
                   <div className="flex gap-1 ml-2 flex-wrap">
+                    {linkedConvs.length > 0 && (
+                      <button
+                        onClick={() => setLinkedOpen(v => !v)}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 transition-colors"
+                      >
+                        <Link2 className="h-3 w-3" />
+                        {linkedConvs.length} prior {linkedConvs.length === 1 ? "convo" : "convos"} on this address
+                      </button>
+                    )}
                     {convLabels.map((l) => (
                       <span
                         key={l.label.id}
@@ -653,6 +673,57 @@ export default function Messenger() {
                 })}
               </div>
             </div>
+
+          {/* Linked Conversations Panel */}
+          {linkedConvs.length > 0 && linkedOpen && (
+            <div className="mx-4 mt-3 mb-0 border border-amber-200 rounded-xl overflow-hidden">
+              <div
+                className="flex items-center justify-between px-3 py-2 bg-amber-50 cursor-pointer"
+                onClick={() => setLinkedOpen(v => !v)}
+              >
+                <div className="flex items-center gap-2">
+                  <Link2 className="h-3.5 w-3.5 text-amber-600" />
+                  <span className="text-xs font-semibold text-amber-700">
+                    {linkedConvs.length} Prior {linkedConvs.length === 1 ? "Conversation" : "Conversations"} on This Property
+                  </span>
+                </div>
+                <ChevronRight className="h-3.5 w-3.5 text-amber-500 rotate-90" />
+              </div>
+              <div className="divide-y divide-amber-100 bg-white">
+                {linkedConvs.map((lc) => {
+                  const lcName = [lc.contactFirstName, lc.contactLastName].filter(Boolean).join(" ") || lc.contactPhone;
+                  const lcStage = (lc as any).aiStage as string | undefined;
+                  const lcBadge = lcStage ? AI_STAGE_BADGES[lcStage] : null;
+                  return (
+                    <div
+                      key={lc.id}
+                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-amber-50/60 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/messenger/${lc.id}`)}
+                    >
+                      <div className="h-7 w-7 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-semibold text-amber-700">{lcName.charAt(0).toUpperCase()}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold truncate text-foreground">{lcName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{lc.contactPhone}</p>
+                        {lc.lastMessagePreview && (
+                          <p className="text-xs text-muted-foreground truncate mt-0.5 italic">"{lc.lastMessagePreview.slice(0, 60)}{lc.lastMessagePreview.length > 60 ? "…" : ""}"</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {lcBadge && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${lcBadge.className}`}>{lcBadge.label}</span>
+                        )}
+                        {lc.lastMessageAt && (
+                          <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(lc.lastMessageAt), { addSuffix: true })}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* DNC Warning Banner */}
           {(contact?.dncStatus === "internal_dnc" || contact?.dncStatus === "dnc_complainers" || contact?.litigatorFlag) && (

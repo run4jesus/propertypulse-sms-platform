@@ -390,6 +390,7 @@ export const appRouter = router({
         await db.delete(contactLists).where(and(eq(contactLists.id, input.id), eq(contactLists.userId, ctx.user.id)));
         return { success: true };
       }),
+
   }),
 
   // ─── Contacts ───────────────────────────────────────────────────────────────
@@ -725,6 +726,46 @@ export const appRouter = router({
           });
         } catch (_e) { /* non-critical */ }
         return { success: true };
+      }),
+
+    // ─── Linked conversations (same property address) ───────────────────────────────────────────────────
+    getLinked: protectedProcedure
+      .input(z.object({ conversationId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        const { conversations: convsTable, contacts: contactsTable } = await import("../drizzle/schema");
+        const { eq, and, ne } = await import("drizzle-orm");
+        const [conv] = await db.select().from(convsTable).where(eq(convsTable.id, input.conversationId)).limit(1);
+        if (!conv || conv.userId !== ctx.user.id) return [];
+        const [contact] = await db.select().from(contactsTable).where(eq(contactsTable.id, conv.contactId)).limit(1);
+        const propAddr = (contact as any)?.propertyAddress;
+        if (!propAddr || propAddr.trim() === "") return [];
+        const linked = await db
+          .select({
+            id: convsTable.id,
+            status: convsTable.status,
+            aiStage: (convsTable as any).aiStage,
+            lastMessageAt: convsTable.lastMessageAt,
+            lastMessagePreview: convsTable.lastMessagePreview,
+            disposition: convsTable.disposition,
+            contactId: convsTable.contactId,
+            contactFirstName: contactsTable.firstName,
+            contactLastName: contactsTable.lastName,
+            contactPhone: contactsTable.phone,
+            propertyAddress: (contactsTable as any).propertyAddress,
+          })
+          .from(convsTable)
+          .innerJoin(contactsTable, eq(convsTable.contactId, contactsTable.id))
+          .where(
+            and(
+              eq(convsTable.userId, ctx.user.id),
+              ne(convsTable.id, input.conversationId),
+              eq((contactsTable as any).propertyAddress, propAddr)
+            )
+          )
+          .orderBy(convsTable.lastMessageAt);
+        return linked;
       }),
   }),
 

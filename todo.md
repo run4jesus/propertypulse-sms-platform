@@ -507,3 +507,8 @@
 - [x] Frontend: add Cost Tracking panel to KPIs page (categorized entries: VA, Software, Data, Other)
 - [x] Frontend: add new KPI metric cards (Cost Per Lead, Cost Per Deal, Leads-to-Deal %, Total Monthly Spend, ROI)
 - [x] Frontend: wire month/year selector to cost entries so costs are tracked per period
+
+## Messenger — Linked Conversations (Same Property Address)
+- [x] Backend: add conversations.getLinked procedure (find all conversations sharing same propertyAddress, excluding current)
+- [x] Frontend: Prior Contact amber badge in Messenger conversation header when linked convos exist
+- [x] Frontend: Linked Conversations collapsible panel in Messenger right sidebar showing all prior threads on same address
