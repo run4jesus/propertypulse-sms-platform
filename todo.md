@@ -517,3 +517,28 @@
 - [x] Backend: add conversations.getPropertyTimeline procedure (all messages across all linked convos for same address, sorted chronologically, grouped by conversation with metadata)
 - [x] Frontend: replace linked conversations panel with unified scrollable timeline in message thread — dated dividers between each conversation attempt showing contact name, phone, and date range
 - [x] Frontend: remove old linked conversations collapsible panel (replaced by inline timeline)
+
+## TCP Litigator List API Integration
+
+- [x] Backend: add TCP_LITIGATOR_LIST_API_URL and TCP_LITIGATOR_LIST_API_CREDENTIALS to env secrets
+- [x] Backend: create litigatorCheck procedure (call TCP API to verify phone number)
+- [x] Backend: integrate litigator check into bulkImport (check each contact during import)
+- [x] Backend: integrate litigator check into campaign send (check before sending SMS)
+- [x] Backend: add system.updateLitigatorCredentials procedure to store/update API credentials
+- [ ] Frontend: add TCP Litigator List settings panel in Settings → Compliance section
+- [ ] Frontend: allow user to enter TCP Litigator List API username and password
+- [ ] Frontend: show litigator check status (enabled/disabled, last checked date)
+- [ ] Frontend: add manual "Check All Contacts" button to re-scan all existing contacts
+- [x] Test: verify litigator check works on contact import
+- [ ] Test: verify litigator check works on campaign send
+- [x] Test: verify red warning banner appears in Messenger for flagged contacts
+
+
+## Lists — Pre-Import Compliance Check
+
+- [x] Backend: add contactLists.preImportCheck procedure (scan CSV for DNC, litigators, duplicates, return counts)
+- [x] Backend: add filtering logic to exclude DNC contacts, litigators, existing contacts based on user checkboxes
+- [ ] Frontend: build compliance check modal showing filtered counts (total, DNC excluded, litigators excluded, duplicates excluded, clean to import) — UI pending, backend ready
+- [ ] Frontend: add checkboxes for "Exclude DNC", "Exclude Litigators", "Exclude Existing Contacts"
+- [ ] Frontend: show summary table with before/after counts and exclusion breakdown
+- [ ] Frontend: wire "Confirm Import" button to apply filters and import only clean contacts

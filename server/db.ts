@@ -1113,3 +1113,114 @@ export async function deleteCostEntry(id: number, userId: number): Promise<void>
   if (!db) return;
   await db.delete(costEntries).where(and(eq(costEntries.id, id), eq(costEntries.userId, userId)));
 }
+
+
+// ─── TCP Litigator List API Integration ────────────────────────────────────────
+/**
+ * Check a phone number against TCP Litigator List API
+ * Returns true if the number is flagged as a litigator, false otherwise
+ */
+export async function checkLitigatorStatus(phoneNumber: string, apiUsername?: string, apiPassword?: string): Promise<boolean> {
+  // If credentials not provided, skip check
+  if (!apiUsername || !apiPassword) return false;
+
+  try {
+    // Normalize phone number to E.164 format (remove all non-digits)
+    const normalizedPhone = phoneNumber.replace(/\D/g, "");
+    if (normalizedPhone.length < 10) return false;
+
+    // Call TCP Litigator List API
+    const apiUrl = `https://api.tcpalitigatorlist.com/scrub/phone/tcpa/${normalizedPhone}`;
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${apiUsername}:${apiPassword}`).toString("base64")}`,
+      },
+    });
+
+    if (!response.ok) {
+      console.warn(`[TCP Litigator] API error for ${phoneNumber}: ${response.status}`);
+      return false;
+    }
+
+    const data = (await response.json()) as { found?: boolean; is_litigator?: boolean };
+    // TCP API returns { found: true } if litigator is found
+    return data.found === true || data.is_litigator === true;
+  } catch (error) {
+    console.error(`[TCP Litigator] Check failed for ${phoneNumber}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Update a contact's litigator flag based on TCP API check
+ */
+export async function updateContactLitigatorFlag(
+  contactId: number,
+  userId: number,
+  isLitigator: boolean
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(contacts)
+    .set({ litigatorFlag: isLitigator })
+    .where(and(eq(contacts.id, contactId), eq(contacts.userId, userId)));
+}
+
+/**
+ * Batch check multiple phone numbers against TCP Litigator List
+ * Returns array of { phoneNumber, isLitigator }
+ */
+export async function batchCheckLitigators(
+  phoneNumbers: string[],
+  apiUsername?: string,
+  apiPassword?: string
+): Promise<Array<{ phoneNumber: string; isLitigator: boolean }>> {
+  const results: Array<{ phoneNumber: string; isLitigator: boolean }> = [];
+
+  for (const phone of phoneNumbers) {
+    const isLitigator = await checkLitigatorStatus(phone, apiUsername, apiPassword);
+    results.push({ phoneNumber: phone, isLitigator });
+    // Rate limit: 50 calls/second, so add small delay between calls
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  return results;
+}
+
+/**
+ * Store TCP Litigator List API credentials for a user
+ */
+export async function updateUserTcpLitigatorCredentials(
+  userId: number,
+  apiUsername: string,
+  apiPassword: string
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(users)
+    .set({
+      tcpLitigatorUsername: apiUsername,
+      tcpLitigatorPassword: apiPassword,
+    })
+    .where(eq(users.id, userId));
+}
+
+/**
+ * Get TCP Litigator List API credentials for a user
+ */
+export async function getUserTcpLitigatorCredentials(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select({
+      username: users.tcpLitigatorUsername,
+      password: users.tcpLitigatorPassword,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return result[0];
+}

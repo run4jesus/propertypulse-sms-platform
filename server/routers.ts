@@ -93,6 +93,11 @@ import {
   updateUserAiMode,
   updateUserTwilio,
   updateUserPodio,
+  updateUserTcpLitigatorCredentials,
+  getUserTcpLitigatorCredentials,
+  checkLitigatorStatus,
+  updateContactLitigatorFlag,
+  batchCheckLitigators,
   updateWorkflow,
   getListMembers,
   updateContactPhoneStatus,
@@ -454,6 +459,73 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         await deleteContact(input.id, ctx.user.id);
         return { success: true };
+      }),
+
+    preImportCheck: protectedProcedure
+      .input(z.object({
+        contacts: z.array(z.object({
+          phone: z.string(),
+          phone2: z.string().optional(),
+          phone3: z.string().optional(),
+        })),
+        listId: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return { total: 0, dnc: 0, litigators: 0, duplicates: 0, clean: 0 };
+
+        const dncContacts = await db
+          .select({ phone: contacts.phone })
+          .from(contacts)
+          .where(and(eq(contacts.userId, ctx.user.id), eq(contacts.dncStatus, 'internal_dnc')));
+        const dncPhones = new Set(dncContacts.map((c) => c.phone.replace(/[^\d]/g, '')));
+
+        // For existing contacts check, we want to exclude clean DNC status
+        // Actually, we want to check if phone exists at all in the user's contacts
+        const existingContacts = await db
+          .select({ phone: contacts.phone })
+          .from(contacts)
+          .where(eq(contacts.userId, ctx.user.id));
+        const existingPhones = new Set(existingContacts.map((c) => c.phone.replace(/[^\d]/g, '')));
+
+        const litigatorContacts = await db
+          .select({ phone: contacts.phone })
+          .from(contacts)
+          .where(and(eq(contacts.userId, ctx.user.id), eq(contacts.litigatorFlag, true)));
+        const litigatorPhones = new Set(litigatorContacts.map((c) => c.phone.replace(/[^\d]/g, '')));
+
+        let dncCount = 0, litigatorCount = 0, duplicateCount = 0;
+        const seenInBatch = new Set<string>();
+
+        for (const contact of input.contacts) {
+          const phones = [contact.phone, contact.phone2, contact.phone3].filter(Boolean);
+          for (const phone of phones) {
+            if (!phone) continue;
+            const normalized = phone.replace(/[^\d]/g, '');
+
+            if (seenInBatch.has(normalized)) {
+              duplicateCount++;
+            } else if (dncPhones.has(normalized)) {
+              dncCount++;
+            } else if (litigatorPhones.has(normalized)) {
+              litigatorCount++;
+            } else if (existingPhones.has(normalized)) {
+              duplicateCount++;
+            }
+            seenInBatch.add(normalized);
+          }
+        }
+
+        // Count unique phones in batch
+        const uniqueInBatch = seenInBatch.size;
+        const clean = uniqueInBatch - dncCount - litigatorCount - duplicateCount;
+        return {
+          total: uniqueInBatch,
+          dnc: dncCount,
+          litigators: litigatorCount,
+          duplicates: duplicateCount,
+          clean: Math.max(0, clean),
+        };
       }),
 
     bulkImport: protectedProcedure

@@ -26,6 +26,9 @@ export const users = mysqlTable("users", {
   // Podio integration
   podioEnabled: boolean("podioEnabled").default(false).notNull(),
   podioWebformUrl: varchar("podioWebformUrl", { length: 512 }).default("https://podio.com/webforms/26979599/2064774"),
+  // TCP Litigator List API credentials
+  tcpLitigatorUsername: varchar("tcpLitigatorUsername", { length: 100 }),
+  tcpLitigatorPassword: varchar("tcpLitigatorPassword", { length: 256 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
