@@ -34,6 +34,7 @@ import MarketingDashboard from "./pages/MarketingDashboard";
 import Leads from "./pages/Leads";
 import DealTracker from "./pages/DealTracker";
 import Lists from "./pages/Lists";
+import TestAI from "./pages/TestAI";
 
 function Router() {
   return (
@@ -74,6 +75,7 @@ function Router() {
             <Route path="/leads" component={Leads} />
             <Route path="/deal-tracker" component={DealTracker} />
             <Route path="/lists" component={Lists} />
+            <Route path="/test-ai" component={TestAI} />
             <Route path="/contacts/import" component={Contacts} />
             <Route path="/404" component={NotFound} />
             <Route component={NotFound} />

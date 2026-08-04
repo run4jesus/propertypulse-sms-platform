@@ -542,3 +542,16 @@
 - [ ] Frontend: add checkboxes for "Exclude DNC", "Exclude Litigators", "Exclude Existing Contacts"
 - [ ] Frontend: show summary table with before/after counts and exclusion breakdown
 - [ ] Frontend: wire "Confirm Import" button to apply filters and import only clean contacts
+
+
+## Test AI Sandbox
+
+- [x] Backend: add system.testAI procedure (simulate conversation without saving to database)
+- [x] Frontend: build TestAI.tsx page with chat interface
+- [x] Frontend: show current AI stage (intro/price_ask/needs_offer/not_interested) in sidebar
+- [x] Frontend: show active prompt (intro/price_ask/needs_offer) being used
+- [x] Frontend: allow user to type seller message and see AI response in real-time
+- [x] Frontend: reset conversation button to start over
+- [x] Frontend: add to main navigation (Settings or Tools section)
+- [ ] Test: verify AI responds correctly to various seller inputs
+- [ ] Test: verify stage transitions work as expected

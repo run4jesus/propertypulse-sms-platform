@@ -123,6 +123,7 @@ const menuGroups = [
       { icon: Hash, label: "Keywords", path: "/campaigns/keywords" },
       { icon: GitBranch, label: "Workflows", path: "/workflows" },
       { icon: PhoneCall, label: "Phone Numbers", path: "/phone-numbers" },
+      { icon: Bot, label: "Test AI", path: "/test-ai" },
     ],
   },
   {
