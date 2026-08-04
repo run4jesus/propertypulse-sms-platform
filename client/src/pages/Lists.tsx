@@ -328,6 +328,127 @@ function ImportModal({
   );
 }
 
+// ─── Compliance Check Modal ──────────────────────────────────────────────────
+function ComplianceCheckModal({
+  open, onClose, csvRows, csvHeaders, mapping, listId, listName, onConfirm,
+}: {
+  open: boolean;
+  onClose: () => void;
+  csvRows: string[][];
+  csvHeaders: string[];
+  mapping: Partial<Record<CsvFieldKey, string>>;
+  listId: number;
+  listName: string;
+  onConfirm: (excludeDnc: boolean, excludeLitigators: boolean, excludeExisting: boolean) => void;
+}) {
+  const [excludeDnc, setExcludeDnc] = useState(true);
+  const [excludeLitigators, setExcludeLitigators] = useState(true);
+  const [excludeExisting, setExcludeExisting] = useState(false);
+  const [checking, setChecking] = useState(false);
+
+  const handleCheck = async () => {
+    if (!mapping.phone) return;
+    setChecking(true);
+
+    const headerIndex = (col: string | undefined) =>
+      col ? csvHeaders.indexOf(col) : -1;
+
+    const phones = csvRows
+      .map((row) => {
+        const idx = headerIndex(mapping.phone);
+        return idx >= 0 ? (row[idx] ?? "").trim() : undefined;
+      })
+      .filter((p): p is string => !!p);
+
+    try {
+      const queryResult = await trpc.contactLists.preImportCheck.useQuery({
+        listId,
+        phones,
+        excludeDnc,
+        excludeLitigators,
+        excludeExisting,
+      });
+
+      const result = queryResult.data;
+      if (!result) {
+        toast.error("No result from compliance check");
+        return;
+      }
+
+      // Show summary
+      toast.success(
+        `Compliance check complete: ${result.cleanCount} contacts ready to import` +
+        (result.dncCount > 0 ? `, ${result.dncCount} DNC` : "") +
+        (result.litigatorCount > 0 ? `, ${result.litigatorCount} litigators` : "") +
+        (result.duplicateCount > 0 ? `, ${result.duplicateCount} duplicates` : "")
+      );
+
+      // Proceed with import if user confirms
+      onConfirm(excludeDnc, excludeLitigators, excludeExisting);
+      onClose();
+    } catch (error) {
+      toast.error("Compliance check failed — please try again.");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Pre-Import Compliance Check</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <p className="text-sm text-muted-foreground">
+            Scan {csvRows.length.toLocaleString()} contacts for compliance issues before importing.
+          </p>
+
+          <div className="space-y-3 p-3 bg-muted/30 rounded-lg">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={excludeDnc}
+                onChange={(e) => setExcludeDnc(e.target.checked)}
+                className="rounded border border-border"
+              />
+              <span className="text-sm">Exclude internal DNC contacts</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={excludeLitigators}
+                onChange={(e) => setExcludeLitigators(e.target.checked)}
+                className="rounded border border-border"
+              />
+              <span className="text-sm">Exclude TCPA litigators</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={excludeExisting}
+                onChange={(e) => setExcludeExisting(e.target.checked)}
+                className="rounded border border-border"
+              />
+              <span className="text-sm">Exclude existing contacts in this list</span>
+            </label>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={checking}>
+            Cancel
+          </Button>
+          <Button onClick={handleCheck} disabled={checking}>
+            {checking ? "Checking…" : "Run Compliance Check"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── List Detail View ─────────────────────────────────────────────────────────
 function ListDetail({
   listId, listName, onBack,

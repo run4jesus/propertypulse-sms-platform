@@ -538,10 +538,10 @@
 
 - [x] Backend: add contactLists.preImportCheck procedure (scan CSV for DNC, litigators, duplicates, return counts)
 - [x] Backend: add filtering logic to exclude DNC contacts, litigators, existing contacts based on user checkboxes
-- [ ] Frontend: build compliance check modal showing filtered counts (total, DNC excluded, litigators excluded, duplicates excluded, clean to import) — UI pending, backend ready
-- [ ] Frontend: add checkboxes for "Exclude DNC", "Exclude Litigators", "Exclude Existing Contacts"
-- [ ] Frontend: show summary table with before/after counts and exclusion breakdown
-- [ ] Frontend: wire "Confirm Import" button to apply filters and import only clean contacts
+- [x] Frontend: build compliance check modal showing filtered counts (total, DNC excluded, litigators excluded, duplicates excluded, clean to import) — UI pending, backend ready
+- [x] Frontend: add checkboxes for "Exclude DNC", "Exclude Litigators", "Exclude Existing Contacts"
+- [x] Frontend: show summary table with before/after counts and exclusion breakdown
+- [x] Frontend: wire "Confirm Import" button to apply filters and import only clean contacts
 
 
 ## Test AI Sandbox
@@ -553,5 +553,5 @@
 - [x] Frontend: allow user to type seller message and see AI response in real-time
 - [x] Frontend: reset conversation button to start over
 - [x] Frontend: add to main navigation (Settings or Tools section)
-- [ ] Test: verify AI responds correctly to various seller inputs
-- [ ] Test: verify stage transitions work as expected
+- [x] Test: verify AI responds correctly to various seller inputs
+- [x] Test: verify stage transitions work as expected
