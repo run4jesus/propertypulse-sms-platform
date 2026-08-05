@@ -585,6 +585,38 @@ export const appRouter = router({
             await addContactToList(c.id, input.listId!);
           }
         }
+
+        // Background: detect line types for all imported contacts' phone numbers
+        // We do this asynchronously so import doesn't block on API calls
+        if (rows.length > 0 && db) {
+          const user = await getUserByOpenId(ctx.user.openId);
+          if (user?.twilioAccountSid && user?.twilioAuthToken) {
+            const { lookupPhoneLineType } = await import("./smsEngine");
+            // Get the newly inserted contacts
+            const newContacts = await db
+              .select({ id: contacts.id, phone: contacts.phone, phone2: contacts.phone2, phone3: contacts.phone3 })
+              .from(contacts)
+              .where(eq(contacts.userId, ctx.user.id))
+              .orderBy(sql`${contacts.id} DESC`)
+              .limit(rows.length);
+            // Run lookups in background (don't await — fire and forget)
+            Promise.allSettled(newContacts.map(async (c) => {
+              try {
+                const [t1, t2, t3] = await Promise.all([
+                  lookupPhoneLineType(c.phone, user.twilioAccountSid!, user.twilioAuthToken!),
+                  c.phone2 ? lookupPhoneLineType(c.phone2, user.twilioAccountSid!, user.twilioAuthToken!) : Promise.resolve("unknown" as const),
+                  c.phone3 ? lookupPhoneLineType(c.phone3, user.twilioAccountSid!, user.twilioAuthToken!) : Promise.resolve("unknown" as const),
+                ]);
+                await db!.update(contacts).set({
+                  phone1LineType: t1,
+                  phone2LineType: t2,
+                  phone3LineType: t3,
+                }).where(eq(contacts.id, c.id));
+              } catch { /* ignore individual lookup failures */ }
+            })).catch(() => {});
+          }
+        }
+
         return { success: true, count: rows.length, skipped };
       }),
 
@@ -1047,6 +1079,7 @@ export const appRouter = router({
         scrubLitigators: z.boolean().default(true),
         scrubFederalDnc: z.boolean().default(false),
         scrubExistingContacts: z.boolean().default(false),
+        phoneField: z.enum(["phone", "phone2", "phone3"]).default("phone"),
       }))
       .query(async ({ ctx, input }) => {
         const db = await getDb();
@@ -1068,8 +1101,16 @@ export const appRouter = router({
         let removedLitigators = 0;
         let removedFederalDnc = 0;
         let removedExisting = 0;
+        let removedNonMobile = 0;
 
         for (const { contact } of listContacts) {
+          // Check if the selected phone field is non-mobile (landline/voip)
+          const lineTypeField = input.phoneField === "phone2" ? "phone2LineType"
+            : input.phoneField === "phone3" ? "phone3LineType"
+            : "phone1LineType";
+          const lineType = (contact as any)[lineTypeField] ?? "unknown";
+          if (lineType === "landline" || lineType === "voip") { removedNonMobile++; continue; }
+
           // Always count opted-out
           if (contact.optedOut) { removedOptedOut++; continue; }
 
@@ -1116,10 +1157,11 @@ export const appRouter = router({
           }
         }
 
-        const totalRemoved = removedOptedOut + removedInternalDnc + removedLitigators + removedFederalDnc + removedExisting;
+        const totalRemoved = removedNonMobile + removedOptedOut + removedInternalDnc + removedLitigators + removedFederalDnc + removedExisting;
         return {
           total,
           sendable: total - totalRemoved,
+          removedNonMobile,
           removedOptedOut,
           removedInternalDnc,
           removedLitigators,

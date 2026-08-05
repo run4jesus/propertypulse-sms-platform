@@ -109,6 +109,10 @@ export const contacts = mysqlTable("contacts", {
   phone1Status: mysqlEnum("phone1Status", ["untouched", "messaged", "replied", "opted_out", "dnc", "needs_reskip"]).default("untouched").notNull(),
   phone2Status: mysqlEnum("phone2Status", ["untouched", "messaged", "replied", "opted_out", "dnc", "needs_reskip"]).default("untouched").notNull(),
   phone3Status: mysqlEnum("phone3Status", ["untouched", "messaged", "replied", "opted_out", "dnc", "needs_reskip"]).default("untouched").notNull(),
+  // Phone line type — detected via TextGrid Lookup API at import time
+  phone1LineType: mysqlEnum("phone1LineType", ["mobile", "landline", "voip", "unknown"]).default("unknown").notNull(),
+  phone2LineType: mysqlEnum("phone2LineType", ["mobile", "landline", "voip", "unknown"]).default("unknown").notNull(),
+  phone3LineType: mysqlEnum("phone3LineType", ["mobile", "landline", "voip", "unknown"]).default("unknown").notNull(),
   notes: text("notes"),
   optedOut: boolean("optedOut").default(false).notNull(),
   // DNC / Litigator scrub results

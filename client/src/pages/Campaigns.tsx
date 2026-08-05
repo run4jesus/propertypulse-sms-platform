@@ -192,6 +192,7 @@ export default function Campaigns() {
       scrubLitigators,
       scrubFederalDnc,
       scrubExistingContacts,
+      phoneField,
     },
     { enabled: !!parsedListId }
   );
@@ -735,6 +736,15 @@ export default function Campaigns() {
                           <span className="text-xs text-muted-foreground">Total contacts in list</span>
                           <span className="text-xs font-medium">{scrubPreview.total.toLocaleString()}</span>
                         </div>
+                        {(scrubPreview as any).removedNonMobile > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Phone className="h-3 w-3 text-orange-500" />
+                              Landline / VoIP (non-mobile)
+                            </span>
+                            <span className="text-xs text-destructive">−{(scrubPreview as any).removedNonMobile.toLocaleString()}</span>
+                          </div>
+                        )}
                         {scrubPreview.removedOptedOut > 0 && (
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground">Opted out (always blocked)</span>

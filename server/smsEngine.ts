@@ -117,6 +117,31 @@ export function resolveMergeFields(
     .replace(/\{PropertyZip\}/gi, get("propertyZip"));
 }
 
+// ─── TextGrid Phone Lookup (line type detection) ────────────────────────────
+// Returns 'mobile' | 'landline' | 'voip' | 'unknown'
+export async function lookupPhoneLineType(
+  phone: string,
+  accountSid: string,
+  authToken: string
+): Promise<"mobile" | "landline" | "voip" | "unknown"> {
+  try {
+    const url = `https://api.textgrid.com/2010-04-01/Accounts/${accountSid}/PhoneNumbers/${encodeURIComponent(phone)}.json?Type=carrier`;
+    const credentials = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+    const response = await fetch(url, {
+      headers: { Authorization: `Basic ${credentials}` },
+    });
+    if (!response.ok) return "unknown";
+    const data = (await response.json()) as any;
+    const lineType: string = data?.carrier?.type ?? data?.line_type_intelligence?.type ?? "unknown";
+    if (lineType === "mobile") return "mobile";
+    if (lineType === "landline") return "landline";
+    if (lineType === "voip" || lineType === "nonFixedVoip" || lineType === "fixedVoip") return "voip";
+    return "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 // ─── TextGrid / Twilio SMS sender ────────────────────────────────────────────
 export async function sendSms(opts: {
   accountSid: string;
@@ -919,10 +944,21 @@ export async function processCampaignBatches() {
 
         // Pick the correct phone field based on campaign phoneField setting
         const phoneField = (campaign as any).phoneField ?? "phone";
-        const toPhone = phoneField === "phone2" ? (contact.phone2 ?? contact.phone)
-          : phoneField === "phone3" ? (contact.phone3 ?? contact.phone)
+        const toPhone = phoneField === "phone2" ? (contact.phone2 ?? null)
+          : phoneField === "phone3" ? (contact.phone3 ?? null)
           : contact.phone;
         if (!toPhone) continue;
+
+        // Skip non-mobile numbers (landline/voip) — always filtered for SMS campaigns
+        const lineTypeField = phoneField === "phone2" ? "phone2LineType"
+          : phoneField === "phone3" ? "phone3LineType"
+          : "phone1LineType";
+        const lineType = (contact as any)[lineTypeField] ?? "unknown";
+        // Only skip if we have confirmed it's a landline or voip — unknown passes through
+        if (lineType === "landline" || lineType === "voip") {
+          console.log(`[BatchEngine] Skipping non-mobile ${toPhone} (${lineType}) for contact ${contact.id}`);
+          continue;
+        }
 
         // Send the SMS
         const result = await sendSms({

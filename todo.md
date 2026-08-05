@@ -568,3 +568,14 @@
 - [x] Add merge field live preview in campaign message composer (shows resolved example with first row of data)
 - [ ] Apply column mapping step when editing existing campaigns too
 - [x] Support both CSV-uploaded lists and existing contact lists
+
+## Mobile-Only Phone Filtering
+
+- [x] Add phone1LineType, phone2LineType, phone3LineType columns to contacts schema (enum: mobile, landline, voip, unknown)
+- [x] Push schema migration for line type columns
+- [x] Add TextGrid Lookup API helper to detect line type per phone number
+- [x] Auto-detect line type on CSV import for all phone columns (phone1/2/3)
+- [x] Add removedNonMobile count to scrubPreview procedure
+- [x] Show non-mobile count in Scrub Preview section of campaign wizard
+- [x] Batch engine skips contacts where selected phoneField is not mobile
+- [ ] Show line type badge on contact rows in Contacts page
