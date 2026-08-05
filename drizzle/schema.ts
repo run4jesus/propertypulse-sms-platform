@@ -262,6 +262,11 @@ export const campaigns = mysqlTable("campaigns", {
   scrubLitigators: boolean("scrubLitigators").default(true).notNull(),
   scrubFederalDnc: boolean("scrubFederalDnc").default(false).notNull(),
   scrubExistingContacts: boolean("scrubExistingContacts").default(false).notNull(),
+  // Column mapping — maps contact fields to merge field names for this campaign
+  // e.g. { firstName: 'firstName', phone: 'phone', propertyAddress: 'address' }
+  columnMapping: json("columnMapping").$type<Record<string, string>>(),
+  // Which phone field to use for sending: 'phone' | 'phone2' | 'phone3'
+  phoneField: varchar("phoneField", { length: 10 }).default("phone").notNull(),
   // Daily send cap — null means unlimited; resets each calendar day
   dailySendCap: int("dailySendCap"),
   dailySentCount: int("dailySentCount").default(0).notNull(),

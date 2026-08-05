@@ -555,3 +555,16 @@
 - [x] Frontend: add to main navigation (Settings or Tools section)
 - [x] Test: verify AI responds correctly to various seller inputs
 - [x] Test: verify stage transitions work as expected
+
+## Campaign CSV Column Mapping
+
+- [x] Add column mapping step to campaign creation wizard (after list selection)
+- [x] Allow user to map CSV columns to: First Name, Last Name, Property Address, Property City, Property State, Property Zip, Phone 1, Phone 2, Phone 3
+- [x] Allow user to select which phone column to use for sending (Phone 1, 2, or 3)
+- [x] Store column mapping on campaign (JSON field in campaigns table)
+- [x] Store phone field selection on campaign
+- [x] Update batch send engine to use campaign column mapping when resolving merge fields
+- [x] Update batch send engine to use selected phone field per contact
+- [x] Add merge field live preview in campaign message composer (shows resolved example with first row of data)
+- [ ] Apply column mapping step when editing existing campaigns too
+- [x] Support both CSV-uploaded lists and existing contact lists

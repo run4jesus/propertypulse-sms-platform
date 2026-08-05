@@ -961,6 +961,8 @@ export const appRouter = router({
         campaignCategory: z.enum(["land", "house"]).default("house"),
         aiOffersEnabled: z.boolean().default(false),
         dailySendCap: z.number().min(1).optional(),
+        columnMapping: z.record(z.string(), z.string()).optional(),
+        phoneField: z.enum(["phone", "phone2", "phone3"]).default("phone"),
       }))
       .mutation(async ({ ctx, input }) => {
         const { steps, scheduledAt, ...campaignData } = input;
@@ -1005,6 +1007,8 @@ export const appRouter = router({
         followUpMessage: z.string().optional(),
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
         dailySendCap: z.number().min(1).nullable().optional(),
+        columnMapping: z.record(z.string(), z.string()).optional(),
+        phoneField: z.enum(["phone", "phone2", "phone3"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { id, steps, scheduledAt, ...data } = input;
@@ -1173,7 +1177,7 @@ export const appRouter = router({
         const queueItems = sendable.map((contact, idx) => {
           const tpl = templates.length > 0 ? templates[idx % templates.length] : null;
           const rawBody = tpl?.body ?? "";
-          const resolvedBody = resolveMergeFields(rawBody, contact);
+          const resolvedBody = resolveMergeFields(rawBody, contact as any);
           return {
             contact,
             templateId: tpl?.id ?? null,

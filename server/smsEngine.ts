@@ -100,22 +100,21 @@ When in doubt between not_interested and neutral, use not_interested only if the
 // ─── Merge field resolver ─────────────────────────────────────────────────────
 export function resolveMergeFields(
   body: string,
-  contact: {
-    firstName?: string | null;
-    lastName?: string | null;
-    propertyAddress?: string | null;
-    propertyCity?: string | null;
-    propertyState?: string | null;
-    propertyZip?: string | null;
-  }
+  contact: Record<string, string | null | undefined>,
+  columnMapping?: Record<string, string> | null
 ): string {
+  // Helper: get value from contact using columnMapping override or default field name
+  const get = (defaultField: string) => {
+    const mappedField = columnMapping?.[defaultField] ?? defaultField;
+    return (contact as any)[mappedField] ?? "";
+  };
   return body
-    .replace(/\{FirstName\}/gi, contact.firstName ?? "")
-    .replace(/\{LastName\}/gi, contact.lastName ?? "")
-    .replace(/\{PropertyAddress\}/gi, contact.propertyAddress ?? "")
-    .replace(/\{PropertyCity\}/gi, contact.propertyCity ?? "")
-    .replace(/\{PropertyState\}/gi, contact.propertyState ?? "")
-    .replace(/\{PropertyZip\}/gi, contact.propertyZip ?? "");
+    .replace(/\{FirstName\}/gi, get("firstName"))
+    .replace(/\{LastName\}/gi, get("lastName"))
+    .replace(/\{PropertyAddress\}/gi, get("propertyAddress"))
+    .replace(/\{PropertyCity\}/gi, get("propertyCity"))
+    .replace(/\{PropertyState\}/gi, get("propertyState"))
+    .replace(/\{PropertyZip\}/gi, get("propertyZip"));
 }
 
 // ─── TextGrid / Twilio SMS sender ────────────────────────────────────────────
@@ -896,7 +895,7 @@ export async function processCampaignBatches() {
             .where(eq(tplTable.id, tplId))
             .limit(1);
           if (!tpl) continue;
-          messageBody = resolveMergeFields(tpl.body, contact);
+          messageBody = resolveMergeFields(tpl.body, contact as any, (campaign as any).columnMapping);
         } else {
           // Fall back to step 1 body
           const { campaignSteps: steps } = await import("../drizzle/schema");
@@ -906,7 +905,7 @@ export async function processCampaignBatches() {
             .where(and(eq(steps.campaignId, campaign.id), eq(steps.stepNumber, 1)))
             .limit(1);
           if (!step1) continue;
-          messageBody = resolveMergeFields(step1.body, contact);
+          messageBody = resolveMergeFields(step1.body, contact as any, (campaign as any).columnMapping);
         }
 
         // Append opt-out footer if enabled
@@ -918,12 +917,19 @@ export async function processCampaignBatches() {
         const rotationIndex = sentCount % rotationPhones.length;
         const fromPhone = rotationPhones[rotationIndex];
 
+        // Pick the correct phone field based on campaign phoneField setting
+        const phoneField = (campaign as any).phoneField ?? "phone";
+        const toPhone = phoneField === "phone2" ? (contact.phone2 ?? contact.phone)
+          : phoneField === "phone3" ? (contact.phone3 ?? contact.phone)
+          : contact.phone;
+        if (!toPhone) continue;
+
         // Send the SMS
         const result = await sendSms({
           accountSid: user.twilioAccountSid,
           authToken: user.twilioAuthToken,
           from: fromPhone.phoneNumber,
-          to: contact.phone,
+          to: toPhone,
           body: messageBody,
         });
 

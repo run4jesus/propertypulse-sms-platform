@@ -36,13 +36,15 @@ import {
   Trash2,
   Zap,
   ShieldCheck,
+  Columns3,
+  Phone,
 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -166,6 +168,8 @@ export default function Campaigns() {
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<number[]>([]);
   const [sendMode, setSendMode] = useState<"automated" | "manual">("automated");
   const [campaignCategory, setCampaignCategory] = useState<"land" | "house">("house");
+  const [phoneField, setPhoneField] = useState<"phone" | "phone2" | "phone3">("phone");
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [, navigate] = useLocation();
   const [steps, setSteps] = useState<Step[]>([
     { stepNumber: 1, body: "", delayDays: 0, delayHours: 0 },
@@ -249,6 +253,8 @@ export default function Campaigns() {
     setFollowUpMessage("Thanks for your time! If anything changes on your end, feel free to reach out.");
     setSendMode("automated");
     setCampaignCategory("house");
+    setPhoneField("phone");
+    setColumnMapping({});
     setSelectedTemplateIds([]);
     setSteps([{ stepNumber: 1, body: "", delayDays: 0, delayHours: 0 }]);
   };
@@ -286,6 +292,8 @@ export default function Campaigns() {
       templateIds: selectedTemplateIds.length > 0 ? selectedTemplateIds : undefined,
       sendMode,
       campaignCategory,
+      phoneField,
+      columnMapping: Object.keys(columnMapping).length > 0 ? columnMapping : undefined,
     });
   };
 
@@ -383,7 +391,7 @@ export default function Campaigns() {
 
                 <div>
                   <Label className="text-xs">Contact List</Label>
-                  <Select value={listId} onValueChange={setListId}>
+                  <Select value={listId} onValueChange={(v) => { setListId(v); setColumnMapping({}); setPhoneField("phone"); }}>
                     <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Select a list..." />
                     </SelectTrigger>
@@ -396,6 +404,86 @@ export default function Campaigns() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Field Mapping — shown when a list is selected */}
+                {listId && (
+                  <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Columns3 className="h-3.5 w-3.5 text-primary" />
+                      <Label className="text-xs font-semibold">Field Mapping</Label>
+                      <span className="text-xs text-muted-foreground">Map your list columns to merge fields</span>
+                    </div>
+
+                    {/* Phone field selector */}
+                    <div>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Phone className="h-3 w-3 text-primary" />
+                        <Label className="text-xs font-medium">Send to which phone number?</Label>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {(["phone", "phone2", "phone3"] as const).map((field) => (
+                          <button
+                            key={field}
+                            type="button"
+                            onClick={() => setPhoneField(field)}
+                            className={`rounded-md border py-1.5 px-2 text-xs font-medium transition-colors ${
+                              phoneField === field
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                            }`}
+                          >
+                            {field === "phone" ? "Phone 1 (Primary)" : field === "phone2" ? "Phone 2" : "Phone 3"}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Contacts without the selected phone will be skipped</p>
+                    </div>
+
+                    {/* Column mapping for merge fields */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">Merge Field Mapping <span className="text-muted-foreground font-normal">(optional — override defaults)</span></Label>
+                      <p className="text-xs text-muted-foreground">By default, merge fields use the standard contact columns. Override here if your list uses different column names.</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          { field: "firstName", label: "{FirstName}" },
+                          { field: "lastName", label: "{LastName}" },
+                          { field: "propertyAddress", label: "{PropertyAddress}" },
+                          { field: "propertyCity", label: "{PropertyCity}" },
+                          { field: "propertyState", label: "{PropertyState}" },
+                          { field: "propertyZip", label: "{PropertyZip}" },
+                        ] as { field: string; label: string }[]).map(({ field, label }) => (
+                          <div key={field}>
+                            <Label className="text-[10px] text-muted-foreground">{label}</Label>
+                            <Select
+                              value={columnMapping[field] ?? field}
+                              onValueChange={(v) => setColumnMapping(prev => ({ ...prev, [field]: v }))}
+                            >
+                              <SelectTrigger className="mt-0.5 h-7 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={field}>Default ({field})</SelectItem>
+                                <SelectItem value="firstName">firstName</SelectItem>
+                                <SelectItem value="lastName">lastName</SelectItem>
+                                <SelectItem value="phone">phone (Phone 1)</SelectItem>
+                                <SelectItem value="phone2">phone2 (Phone 2)</SelectItem>
+                                <SelectItem value="phone3">phone3 (Phone 3)</SelectItem>
+                                <SelectItem value="propertyAddress">propertyAddress</SelectItem>
+                                <SelectItem value="propertyCity">propertyCity</SelectItem>
+                                <SelectItem value="propertyState">propertyState</SelectItem>
+                                <SelectItem value="propertyZip">propertyZip</SelectItem>
+                                <SelectItem value="address">address (Mailing)</SelectItem>
+                                <SelectItem value="city">city (Mailing City)</SelectItem>
+                                <SelectItem value="state">state (Mailing State)</SelectItem>
+                                <SelectItem value="zip">zip (Mailing Zip)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <Label className="text-xs">From Number(s) <span className="text-muted-foreground font-normal">(select up to 3 — rotates for better deliverability)</span></Label>
@@ -750,7 +838,7 @@ export default function Campaigns() {
                           <p className="text-xs text-muted-foreground mt-1">Templates rotate in order across contacts in the Send Queue</p>
                         </div>
                       ) : (
-                        <div>
+                          <div>
                           <Textarea
                             placeholder="Hi {FirstName}, I'm interested in your property at {PropertyAddress}..."
                             value={message}
@@ -760,6 +848,21 @@ export default function Campaigns() {
                           <p className="text-xs text-muted-foreground mt-1">
                             {message.length} chars · Or add templates above to rotate up to 8 variants
                           </p>
+                          {/* Live merge field preview */}
+                          {message && message.includes("{") && (
+                            <div className="mt-2 rounded-md border border-dashed border-border bg-muted/30 p-2">
+                              <p className="text-[10px] font-semibold text-muted-foreground mb-1">Preview (example contact)</p>
+                              <p className="text-xs text-foreground whitespace-pre-wrap">
+                                {message
+                                  .replace(/\{FirstName\}/gi, "John")
+                                  .replace(/\{LastName\}/gi, "Smith")
+                                  .replace(/\{PropertyAddress\}/gi, "123 Main St")
+                                  .replace(/\{PropertyCity\}/gi, "Dallas")
+                                  .replace(/\{PropertyState\}/gi, "TX")
+                                  .replace(/\{PropertyZip\}/gi, "75201")}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
