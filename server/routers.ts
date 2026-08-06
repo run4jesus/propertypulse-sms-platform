@@ -93,6 +93,7 @@ import {
   updateUserAiMode,
   updateUserTwilio,
   updateUserPodio,
+  updateUserBusinessHours,
   updateUserTcpLitigatorCredentials,
   getUserTcpLitigatorCredentials,
   checkLitigatorStatus,
@@ -166,8 +167,8 @@ export const appRouter = router({
     testPodio: protectedProcedure
       .input(z.object({ webformUrl: z.string().optional() }))
       .mutation(async ({ ctx }) => {
-        const { pushLeadToPodio } = await import("./podioIntegration");
-        const result = await pushLeadToPodio({
+        const { pushLeadToPodio: _pushLeadToPodio } = await import("./podioIntegration");
+        const result = await _pushLeadToPodio({
           firstName: "Test",
           lastName: "Lead",
           phone: "+10000000000",
@@ -176,6 +177,17 @@ export const appRouter = router({
           conversationThread: "[LotPulse SMS Test Push]\n[Agent]: Hey, are you interested in selling?\n[Seller]: Yes I'm interested, how much?",
         });
         return result;
+      }),
+
+    updateBusinessHours: protectedProcedure
+      .input(z.object({
+        hoursStart: z.number().min(0).max(23),
+        hoursEnd: z.number().min(1).max(24),
+        timezone: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await updateUserBusinessHours(ctx.user.id, input.hoursStart, input.hoursEnd, input.timezone);
+        return { success: true };
       }),
   }),
 

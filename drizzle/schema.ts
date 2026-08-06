@@ -20,6 +20,10 @@ export const users = mysqlTable("users", {
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   // AI global toggle
   aiModeEnabled: boolean("aiModeEnabled").default(false).notNull(),
+  // AI business hours — AI only responds within these hours (24h format, e.g. 8 = 8am, 20 = 8pm)
+  aiHoursStart: int("aiHoursStart").default(8).notNull(),
+  aiHoursEnd: int("aiHoursEnd").default(20).notNull(),
+  aiTimezone: varchar("aiTimezone", { length: 64 }).default("America/Chicago").notNull(),
   // Twilio config
   twilioAccountSid: varchar("twilioAccountSid", { length: 64 }),
   twilioAuthToken: varchar("twilioAuthToken", { length: 64 }),

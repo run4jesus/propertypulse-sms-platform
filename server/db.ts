@@ -108,6 +108,21 @@ export async function updateUserPodio(userId: number, enabled: boolean, webformU
   await db.update(users).set(updateData as any).where(eq(users.id, userId));
 }
 
+export async function updateUserBusinessHours(
+  userId: number,
+  hoursStart: number,
+  hoursEnd: number,
+  timezone: string
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({
+    aiHoursStart: hoursStart,
+    aiHoursEnd: hoursEnd,
+    aiTimezone: timezone,
+  }).where(eq(users.id, userId));
+}
+
 // ─── Phone Numbers ────────────────────────────────────────────────────────────
 export async function getPhoneNumbers(userId: number) {
   const db = await getDb();

@@ -25,6 +25,14 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Clock } from "lucide-react";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -117,6 +125,35 @@ export default function Settings() {
   const aiEnabled = (me as any)?.aiModeEnabled ?? false;
   const podioEnabled = (me as any)?.podioEnabled ?? false;
   const [podioWebformUrl, setPodioWebformUrl] = useState("");
+
+  // Business hours state — initialized from saved user settings
+  const [hoursStart, setHoursStart] = useState<number>((me as any)?.aiHoursStart ?? 8);
+  const [hoursEnd, setHoursEnd] = useState<number>((me as any)?.aiHoursEnd ?? 20);
+  const [timezone, setTimezone] = useState<string>((me as any)?.aiTimezone ?? "America/Chicago");
+
+  const updateBusinessHours = trpc.settings.updateBusinessHours.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+      toast.success("Business hours saved");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save business hours"),
+  });
+
+  // Hour options for dropdowns (0-23)
+  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
+    value: i,
+    label: i === 0 ? "12:00 AM" : i < 12 ? `${i}:00 AM` : i === 12 ? "12:00 PM" : `${i - 12}:00 PM`,
+  }));
+
+  const TIMEZONES = [
+    { value: "America/Chicago", label: "Central Time (CST/CDT)" },
+    { value: "America/New_York", label: "Eastern Time (EST/EDT)" },
+    { value: "America/Denver", label: "Mountain Time (MST/MDT)" },
+    { value: "America/Los_Angeles", label: "Pacific Time (PST/PDT)" },
+    { value: "America/Phoenix", label: "Arizona (MST, no DST)" },
+    { value: "America/Anchorage", label: "Alaska Time (AKST/AKDT)" },
+    { value: "Pacific/Honolulu", label: "Hawaii Time (HST)" },
+  ];
 
   const PRESET_COLORS = [
     "#ef4444", "#f97316", "#eab308", "#22c55e",
@@ -286,6 +323,92 @@ export default function Settings() {
               <Button size="sm" onClick={() => toast.success("System prompt saved")}>
                 Save Prompt
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">AI Capabilities</CardTitle>
+            </CardHeader>
+          </Card>
+
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm">Business Hours</CardTitle>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                The AI agent will only respond to sellers during these hours. Messages received outside hours are held and responded to when business hours resume.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs">Start Time</Label>
+                  <Select
+                    value={String(hoursStart)}
+                    onValueChange={(v) => setHoursStart(parseInt(v))}
+                  >
+                    <SelectTrigger className="mt-1 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {hourOptions.map((h) => (
+                        <SelectItem key={h.value} value={String(h.value)}>
+                          {h.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">End Time</Label>
+                  <Select
+                    value={String(hoursEnd)}
+                    onValueChange={(v) => setHoursEnd(parseInt(v))}
+                  >
+                    <SelectTrigger className="mt-1 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {hourOptions.map((h) => (
+                        <SelectItem key={h.value} value={String(h.value)}>
+                          {h.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Timezone</Label>
+                <Select value={timezone} onValueChange={setTimezone}>
+                  <SelectTrigger className="mt-1 h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONES.map((tz) => (
+                      <SelectItem key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-xs text-muted-foreground">
+                  Currently set: {hourOptions.find(h => h.value === hoursStart)?.label} – {hourOptions.find(h => h.value === hoursEnd)?.label} · {TIMEZONES.find(t => t.value === timezone)?.label}
+                </p>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={updateBusinessHours.isPending}
+                  onClick={() => updateBusinessHours.mutate({ hoursStart, hoursEnd, timezone })}
+                >
+                  {updateBusinessHours.isPending ? "Saving..." : "Save Hours"}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

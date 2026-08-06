@@ -257,13 +257,32 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<User> {
-    // Regular authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
     const session = await this.verifySession(sessionCookie);
 
     if (!session) {
       throw ForbiddenError("Invalid session cookie");
+    }
+
+    // Cron short-circuit — cron callers have openId starting with "cron_"
+    if (session.openId.startsWith("cron_")) {
+      const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
+      if (!userInfo.taskUid) throw ForbiddenError("Cron session missing task_uid");
+      const now = new Date();
+      return {
+        id: -1,
+        openId: userInfo.openId,
+        name: userInfo.name || "Manus Scheduled Task",
+        email: null,
+        loginMethod: null,
+        role: "user",
+        createdAt: now,
+        updatedAt: now,
+        lastSignedIn: now,
+        taskUid: userInfo.taskUid,
+        isCron: true,
+      } as any;
     }
 
     const sessionUserId = session.openId;

@@ -579,3 +579,16 @@
 - [x] Show non-mobile count in Scrub Preview section of campaign wizard
 - [x] Batch engine skips contacts where selected phoneField is not mobile
 - [ ] Show line type badge on contact rows in Contacts page
+
+## AI Business Hours
+
+- [x] Add aiHoursStart, aiHoursEnd, aiTimezone columns to users schema
+- [x] Push schema migration for business hours columns
+- [x] Add updateUserBusinessHours helper in db.ts
+- [x] Add settings.updateBusinessHours tRPC procedure
+- [x] Add Business Hours card to Settings > AI Agent tab with start/end time dropdowns and timezone selector
+- [x] AI agent reads user's saved hours before responding (respects timezone)
+- [x] Apply legacy SDK cron auth patches (sdk.ts + manusTypes.ts)
+- [x] Create after-hours follow-up scheduled handler at /api/scheduled/after-hours-followup
+- [x] Register handler in index.ts
+- [ ] Deploy site and create heartbeat job (fires at business hours start time daily)

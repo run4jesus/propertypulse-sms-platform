@@ -551,6 +551,25 @@ export async function handleInboundSms(
         return;
       }
 
+      // ─── Business hours check — use user's saved aiHoursStart/End/Timezone ──
+      {
+        const tz = (user as any).aiTimezone ?? "America/Chicago";
+        const startHour = (user as any).aiHoursStart ?? 8;
+        const endHour = (user as any).aiHoursEnd ?? 20;
+        const currentHour = parseInt(
+          new Intl.DateTimeFormat("en-US", {
+            timeZone: tz,
+            hour: "numeric",
+            hour12: false,
+          }).format(new Date()),
+          10
+        );
+        if (currentHour < startHour || currentHour >= endHour) {
+          console.log(`[SMS] AI outside business hours (${tz} hour: ${currentHour}, window: ${startHour}–${endHour}) — skipping reply for conversation ${conversation.id}`);
+          return;
+        }
+      }
+
       // Get recent messages for context
       const recentMsgs = await db
         .select()
