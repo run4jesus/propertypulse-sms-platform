@@ -25,10 +25,18 @@ export const users = mysqlTable("users", {
   aiHoursEnd: int("aiHoursEnd").default(20).notNull(),
   aiTimezone: varchar("aiTimezone", { length: 64 }).default("America/Chicago").notNull(),
   // AI reply delay — random delay in minutes before sending reply (feels human)
-  aiReplyDelayFirstMin: int("aiReplyDelayFirstMin").default(1).notNull(),
-  aiReplyDelayFirstMax: int("aiReplyDelayFirstMax").default(2).notNull(),
-  aiReplyDelayFollowMin: int("aiReplyDelayFollowMin").default(1).notNull(),
-  aiReplyDelayFollowMax: int("aiReplyDelayFollowMax").default(2).notNull(),
+  aiReplyDelayFirstMin: int("aiReplyDelayFirstMin").default(2).notNull(),
+  aiReplyDelayFirstMax: int("aiReplyDelayFirstMax").default(6).notNull(),
+  aiReplyDelayFollowMin: int("aiReplyDelayFollowMin").default(2).notNull(),
+  aiReplyDelayFollowMax: int("aiReplyDelayFollowMax").default(6).notNull(),
+  // AI training config — stored as JSON strings
+  aiPersona: text("aiPersona"),
+  aiTone: text("aiTone"),
+  aiBusinessContext: text("aiBusinessContext"),
+  aiExamples: text("aiExamples"),
+  aiObjectionHandling: text("aiObjectionHandling"),
+  aiStageInstructions: text("aiStageInstructions"),
+  aiForbiddenPhrases: text("aiForbiddenPhrases"),
   // Twilio config
   twilioAccountSid: varchar("twilioAccountSid", { length: 64 }),
   twilioAuthToken: varchar("twilioAuthToken", { length: 64 }),

@@ -95,6 +95,7 @@ import {
   updateUserPodio,
   updateUserBusinessHours,
   updateUserReplyDelay,
+  updateUserAiTraining,
   updateUserTcpLitigatorCredentials,
   getUserTcpLitigatorCredentials,
   checkLitigatorStatus,
@@ -200,6 +201,25 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         await updateUserReplyDelay(ctx.user.id, input.firstMin, input.firstMax, input.followMin, input.followMax);
+        return { success: true };
+      }),
+
+    updateAiTraining: protectedProcedure
+      .input(z.object({
+        aiPersona: z.string().optional(),
+        aiTone: z.string().optional(),
+        aiBusinessContext: z.string().optional(),
+        aiExamples: z.string().optional(),
+        aiObjectionHandling: z.string().optional(),
+        aiStageInstructions: z.string().optional(),
+        aiForbiddenPhrases: z.string().optional(),
+        aiReplyDelayFirstMin: z.number().min(0).max(60).optional(),
+        aiReplyDelayFirstMax: z.number().min(0).max(60).optional(),
+        aiReplyDelayFollowMin: z.number().min(0).max(60).optional(),
+        aiReplyDelayFollowMax: z.number().min(0).max(60).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await updateUserAiTraining(ctx.user.id, input);
         return { success: true };
       }),
   }),

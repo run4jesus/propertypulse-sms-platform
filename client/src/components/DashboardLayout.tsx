@@ -60,6 +60,7 @@ import {
   Megaphone,
   UserCheck,
   Shuffle,
+  Brain,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -124,6 +125,7 @@ const menuGroups = [
       { icon: GitBranch, label: "Workflows", path: "/workflows" },
       { icon: PhoneCall, label: "Phone Numbers", path: "/phone-numbers" },
       { icon: Bot, label: "Test AI", path: "/test-ai" },
+      { icon: Brain, label: "AI Training", path: "/ai-training" },
     ],
   },
   {

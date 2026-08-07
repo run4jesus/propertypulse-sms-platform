@@ -140,6 +140,31 @@ export async function updateUserReplyDelay(
   }).where(eq(users.id, userId));
 }
 
+export async function updateUserAiTraining(
+  userId: number,
+  config: {
+    aiPersona?: string;
+    aiTone?: string;
+    aiBusinessContext?: string;
+    aiExamples?: string;
+    aiObjectionHandling?: string;
+    aiStageInstructions?: string;
+    aiForbiddenPhrases?: string;
+    aiReplyDelayFirstMin?: number;
+    aiReplyDelayFirstMax?: number;
+    aiReplyDelayFollowMin?: number;
+    aiReplyDelayFollowMax?: number;
+  }
+) {
+  const db = await getDb();
+  if (!db) return;
+  const updateData: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(config)) {
+    if (v !== undefined) updateData[k] = v;
+  }
+  await db.update(users).set(updateData as any).where(eq(users.id, userId));
+}
+
 // ─── Phone Numbers ────────────────────────────────────────────────────────────
 export async function getPhoneNumbers(userId: number) {
   const db = await getDb();

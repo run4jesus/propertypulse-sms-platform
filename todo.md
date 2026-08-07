@@ -620,3 +620,33 @@
 - [x] Add delay logic to smsEngine.ts: random delay before sending (first reply: 1-2 min default, follow-up: 1-2 min default, configurable)
 - [x] Add Reply Delay settings card to Settings > AI Agent tab (min/max dropdowns for first and follow-up)
 - [x] Test AI section stays instant (no delay applied)
+
+## AI Agent Training Hub
+
+- [ ] Add aiPersona, aiTone, aiBusinessContext, aiExamples, aiObjectionHandling, aiStageInstructions, aiForbiddenPhrases JSON columns to users schema
+- [ ] Push schema migration for AI training columns
+- [ ] Add settings.updateAiTraining tRPC procedure to save all training config
+- [ ] Build dedicated AI Agent Training page (separate from Settings or as a new tab)
+- [ ] Persona & Tone section: persona name, communication style, tone descriptors
+- [ ] Business Context section: market area, close timeline, payment method, custom facts
+- [ ] Conversation Examples section: add/remove example seller-agent exchanges
+- [ ] Objection Handling section: pre-define responses to common objections
+- [ ] Stage-Specific Instructions section: custom instructions per stage (intro/price_ask/needs_offer)
+- [ ] Forbidden Phrases section: list of words/phrases AI must never use
+- [ ] Reply Timing section: configurable min/max delay range (replaces hardcoded defaults)
+- [ ] Wire all training config into GPT system prompt at send time in smsEngine.ts
+- [ ] Add link to AI Training page from Settings > AI Agent tab
+
+- [x] Add aiPersona, aiTone, aiBusinessContext, aiExamples, aiObjectionHandling, aiStageInstructions, aiForbiddenPhrases JSON columns to users schema
+- [x] Push schema migration for AI training columns
+- [x] Add settings.updateAiTraining tRPC procedure to save all training config
+- [x] Build dedicated AI Agent Training page at /ai-training
+- [x] Persona & Tone section: persona description + tone presets + custom tone textarea
+- [x] Business Context section: free-text facts about the business
+- [x] Conversation Examples section: add/remove example seller-agent exchanges
+- [x] Objection Handling section: pre-define responses to common objections
+- [x] Stage-Specific Instructions section: custom instructions per stage
+- [x] Forbidden Phrases section: tag-based list of phrases AI must never use
+- [x] Reply Timing section: configurable min/max delay for first and follow-up replies
+- [x] Wire all training config into GPT system prompt dynamically at send time
+- [x] Add AI Training link to sidebar navigation (Brain icon)

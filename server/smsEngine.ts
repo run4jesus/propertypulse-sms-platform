@@ -630,24 +630,84 @@ BRANCHING RULES:
         messages: [
           {
             role: "system",
-            content: `You are texting a property owner on behalf of a real estate investor who buys properties.
+            content: (() => {
+              // ── Build dynamic system prompt from user's AI training config ──
+              const persona = (user as any).aiPersona?.trim();
+              const tone = (user as any).aiTone?.trim();
+              const businessContext = (user as any).aiBusinessContext?.trim();
+              const forbiddenRaw = (user as any).aiForbiddenPhrases;
+              const examplesRaw = (user as any).aiExamples;
+              const objectionRaw = (user as any).aiObjectionHandling;
+              const stageInstructionsRaw = (user as any).aiStageInstructions;
 
-${stageContext}
+              let forbidden: string[] = [];
+              let examples: Array<{ seller: string; agent: string }> = [];
+              let objections: Array<{ objection: string; response: string }> = [];
+              let stageInstructions: Array<{ stage: string; instruction: string }> = [];
+              try { if (forbiddenRaw) forbidden = JSON.parse(forbiddenRaw); } catch {}
+              try { if (examplesRaw) examples = JSON.parse(examplesRaw); } catch {}
+              try { if (objectionRaw) objections = JSON.parse(objectionRaw); } catch {}
+              try { if (stageInstructionsRaw) stageInstructions = JSON.parse(stageInstructionsRaw); } catch {}
 
-EXACT REPLY TEMPLATES — use these word-for-word when the rule applies:
+              const stageCustom = stageInstructions.find(s => s.stage === currentStage)?.instruction?.trim();
+
+              const parts: string[] = [];
+
+              // Identity
+              parts.push(persona
+                ? `You are: ${persona}`
+                : `You are texting a property owner on behalf of a real estate investor who buys properties.`);
+
+              // Tone
+              if (tone) parts.push(`\nTONE: ${tone}`);
+
+              // Business context
+              if (businessContext) parts.push(`\nBUSINESS CONTEXT:\n${businessContext}`);
+
+              // Stage context
+              parts.push(`\n${stageContext}`);
+
+              // Custom stage instruction
+              if (stageCustom) parts.push(`\nADDITIONAL INSTRUCTION FOR THIS STAGE: ${stageCustom}`);
+
+              // Conversation examples
+              if (examples.filter(e => e.seller && e.agent).length > 0) {
+                parts.push(`\nEXAMPLE CONVERSATIONS (use these as style guides):`);
+                examples.filter(e => e.seller && e.agent).forEach((ex, i) => {
+                  parts.push(`Example ${i + 1}:\n  Seller: "${ex.seller}"\n  Agent: "${ex.agent}"`);
+                });
+              }
+
+              // Objection handling
+              if (objections.filter(o => o.objection && o.response).length > 0) {
+                parts.push(`\nOBJECTION HANDLING GUIDE:`);
+                objections.filter(o => o.objection && o.response).forEach(obj => {
+                  parts.push(`  If seller says: "${obj.objection}" → respond: "${obj.response}"`);
+                });
+              }
+
+              // Reply templates
+              parts.push(`\nEXACT REPLY TEMPLATES — use these word-for-word when the rule applies:
 - Not interested goodbye: "No worries at all, thanks for your time. Feel free to reach out if anything changes."
 - Ask for price: "Ok great, what price did you have in mind for the property?"
 - Needs-offer handoff (seller gives a price OR says make me an offer): "Got it! Let me get that info over to the right person and they'll be in touch with you shortly."
-- Empathy acknowledgment (use BEFORE the handoff message when seller shares something emotional): "Sorry to hear that, I appreciate you sharing that with me."
+- Empathy acknowledgment (use BEFORE the handoff message when seller shares something emotional): "Sorry to hear that, I appreciate you sharing that with me."`);
 
-CRITICAL RULES — never break these:
-- NEVER mention a company name, your name, or your partner's name
-- NEVER say you are an AI or a bot
-- NEVER use corporate or formal language
-- NEVER skip past an emotional disclosure — always acknowledge before pivoting
-- Use ONLY whole dollar amounts — no cents, no ranges
-- Keep every reply SHORT — 1 to 2 sentences maximum
-- Sound like a real person texting from their phone — casual, warm, direct`,
+              // Core rules
+              const forbiddenList = [
+                "NEVER mention a company name, your name, or your partner's name",
+                "NEVER say you are an AI or a bot",
+                "NEVER use corporate or formal language",
+                "NEVER skip past an emotional disclosure — always acknowledge before pivoting",
+                "Use ONLY whole dollar amounts — no cents, no ranges",
+                "Keep every reply SHORT — 1 to 2 sentences maximum",
+                "Sound like a real person texting from their phone — casual, warm, direct",
+                ...forbidden.map(f => `NEVER say or write: "${f}"`),
+              ];
+              parts.push(`\nCRITICAL RULES — never break these:\n${forbiddenList.map(r => `- ${r}`).join("\n")}`);
+
+              return parts.join("\n");
+            })(),
           },
           {
             role: "user",
