@@ -123,6 +123,23 @@ export async function updateUserBusinessHours(
   }).where(eq(users.id, userId));
 }
 
+export async function updateUserReplyDelay(
+  userId: number,
+  firstMin: number,
+  firstMax: number,
+  followMin: number,
+  followMax: number
+) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({
+    aiReplyDelayFirstMin: firstMin,
+    aiReplyDelayFirstMax: firstMax,
+    aiReplyDelayFollowMin: followMin,
+    aiReplyDelayFollowMax: followMax,
+  }).where(eq(users.id, userId));
+}
+
 // ─── Phone Numbers ────────────────────────────────────────────────────────────
 export async function getPhoneNumbers(userId: number) {
   const db = await getDb();

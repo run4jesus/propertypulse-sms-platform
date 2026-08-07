@@ -693,6 +693,22 @@ CRITICAL RULES — never break these:
           .where(eq(phoneNumbers.id, phoneRecord.id))
           .limit(1);
 
+        // ─── Human-like reply delay ─────────────────────────────────────────────
+        // Determine if this is the first AI reply in this conversation or a follow-up.
+        // First reply: 2–8 minutes. Follow-up replies: 1–5 minutes.
+        // Delays are randomized within the range to feel natural.
+        const priorAiReplies = recentMsgs.filter((m) => m.direction === "outbound" && m.isAiGenerated).length;
+        const isFirstReply = priorAiReplies === 0;
+        const delayFirstMin = (user as any).aiReplyDelayFirstMin ?? 1;
+        const delayFirstMax = (user as any).aiReplyDelayFirstMax ?? 2;
+        const delayFollowMin = (user as any).aiReplyDelayFollowMin ?? 1;
+        const delayFollowMax = (user as any).aiReplyDelayFollowMax ?? 2;
+        const minDelay = isFirstReply ? delayFirstMin : delayFollowMin;
+        const maxDelay = isFirstReply ? delayFirstMax : delayFollowMax;
+        const delayMs = (Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay) * 60 * 1000;
+        console.log(`[SMS] AI reply delayed ${Math.round(delayMs / 60000)} min (${isFirstReply ? "first" : "follow-up"} reply) for conversation ${conversation.id}`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+
         const result = await sendSms({
           accountSid: user.twilioAccountSid,
           authToken: user.twilioAuthToken,

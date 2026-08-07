@@ -94,6 +94,7 @@ import {
   updateUserTwilio,
   updateUserPodio,
   updateUserBusinessHours,
+  updateUserReplyDelay,
   updateUserTcpLitigatorCredentials,
   getUserTcpLitigatorCredentials,
   checkLitigatorStatus,
@@ -179,7 +180,7 @@ export const appRouter = router({
         return result;
       }),
 
-    updateBusinessHours: protectedProcedure
+  updateBusinessHours: protectedProcedure
       .input(z.object({
         hoursStart: z.number().min(0).max(23),
         hoursEnd: z.number().min(1).max(24),
@@ -187,6 +188,18 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         await updateUserBusinessHours(ctx.user.id, input.hoursStart, input.hoursEnd, input.timezone);
+        return { success: true };
+      }),
+
+    updateReplyDelay: protectedProcedure
+      .input(z.object({
+        firstMin: z.number().min(0).max(60),
+        firstMax: z.number().min(0).max(60),
+        followMin: z.number().min(0).max(60),
+        followMax: z.number().min(0).max(60),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await updateUserReplyDelay(ctx.user.id, input.firstMin, input.firstMax, input.followMin, input.followMax);
         return { success: true };
       }),
   }),

@@ -606,3 +606,17 @@
 - [x] Add custom date range picker (calendar) for custom range selection
 - [x] Wire all KPI cards to use selected date range
 - [x] Update "Today's Numbers" label to reflect selected range
+
+## AI Reply Delay (Human-Like)
+
+- [ ] Add aiReplyDelayFirstMin, aiReplyDelayFirstMax, aiReplyDelayFollowMin, aiReplyDelayFollowMax columns to users schema
+- [ ] Push schema migration
+- [ ] Add delay logic to smsEngine.ts: schedule reply after random delay (first reply: 2-8 min, follow-up: 1-5 min)
+- [ ] Add Reply Delay settings card to Settings > AI Agent tab
+- [ ] Test AI section stays instant (no delay applied)
+
+- [x] Add aiReplyDelayFirstMin, aiReplyDelayFirstMax, aiReplyDelayFollowMin, aiReplyDelayFollowMax columns to users schema
+- [x] Push schema migration
+- [x] Add delay logic to smsEngine.ts: random delay before sending (first reply: 1-2 min default, follow-up: 1-2 min default, configurable)
+- [x] Add Reply Delay settings card to Settings > AI Agent tab (min/max dropdowns for first and follow-up)
+- [x] Test AI section stays instant (no delay applied)

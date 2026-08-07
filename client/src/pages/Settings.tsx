@@ -145,6 +145,26 @@ export default function Settings() {
     label: i === 0 ? "12:00 AM" : i < 12 ? `${i}:00 AM` : i === 12 ? "12:00 PM" : `${i - 12}:00 PM`,
   }));
 
+  // Reply delay state
+  const [delayFirstMin, setDelayFirstMin] = useState<number>((me as any)?.aiReplyDelayFirstMin ?? 1);
+  const [delayFirstMax, setDelayFirstMax] = useState<number>((me as any)?.aiReplyDelayFirstMax ?? 2);
+  const [delayFollowMin, setDelayFollowMin] = useState<number>((me as any)?.aiReplyDelayFollowMin ?? 1);
+  const [delayFollowMax, setDelayFollowMax] = useState<number>((me as any)?.aiReplyDelayFollowMax ?? 2);
+
+  const updateReplyDelay = trpc.settings.updateReplyDelay.useMutation({
+    onSuccess: () => {
+      utils.auth.me.invalidate();
+      toast.success("Reply delay saved");
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save reply delay"),
+  });
+
+  // Minute options for delay dropdowns (0-30)
+  const minuteOptions = Array.from({ length: 31 }, (_, i) => ({
+    value: i,
+    label: i === 0 ? "Instant" : i === 1 ? "1 min" : `${i} min`,
+  }));
+
   const TIMEZONES = [
     { value: "America/Chicago", label: "Central Time (CST/CDT)" },
     { value: "America/New_York", label: "Eastern Time (EST/EDT)" },
@@ -412,6 +432,60 @@ export default function Settings() {
             </CardContent>
           </Card>
 
+          {/* Reply Delay */}
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-primary" />
+                <CardTitle className="text-sm">Reply Delay</CardTitle>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Add a random delay before the AI replies to feel more like a real person texting. Test AI is always instant.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-xs font-medium">First Reply (when seller first responds)</Label>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <Select value={String(delayFirstMin)} onValueChange={(v) => setDelayFirstMin(parseInt(v))}>
+                    <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                    <SelectContent>{minuteOptions.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <span className="text-xs text-muted-foreground">to</span>
+                  <Select value={String(delayFirstMax)} onValueChange={(v) => setDelayFirstMax(parseInt(v))}>
+                    <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                    <SelectContent>{minuteOptions.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs font-medium">Follow-up Replies (subsequent messages)</Label>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <Select value={String(delayFollowMin)} onValueChange={(v) => setDelayFollowMin(parseInt(v))}>
+                    <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                    <SelectContent>{minuteOptions.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <span className="text-xs text-muted-foreground">to</span>
+                  <Select value={String(delayFollowMax)} onValueChange={(v) => setDelayFollowMax(parseInt(v))}>
+                    <SelectTrigger className="h-8 text-xs w-28"><SelectValue /></SelectTrigger>
+                    <SelectContent>{minuteOptions.map(m => <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={updateReplyDelay.isPending}
+                  onClick={() => updateReplyDelay.mutate({ firstMin: delayFirstMin, firstMax: delayFirstMax, followMin: delayFollowMin, followMax: delayFollowMax })}
+                >
+                  {updateReplyDelay.isPending ? "Saving..." : "Save Delay"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* AI Capabilities */}
           <Card className="border shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">AI Capabilities</CardTitle>
