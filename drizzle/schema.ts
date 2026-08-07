@@ -170,6 +170,8 @@ export const conversations = mysqlTable("conversations", {
   phoneNumberId: int("phoneNumberId"),
   // AI per-conversation toggle
   aiEnabled: boolean("aiEnabled").default(false).notNull(),
+  // AI paused — user manually paused AI to jump into the conversation themselves
+  aiPaused: boolean("aiPaused").default(false).notNull(),
   // Lead scoring
   leadScore: int("leadScore").default(0),
   // Extracted info

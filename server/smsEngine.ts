@@ -551,6 +551,14 @@ export async function handleInboundSms(
         return;
       }
 
+      // ─── Per-conversation pause check ────────────────────────────────────────
+      // User manually paused AI for this conversation to jump in themselves.
+      // This only affects THIS conversation — all others continue normally.
+      if ((conversation as any).aiPaused) {
+        console.log(`[SMS] AI paused by user for conversation ${conversation.id} — skipping auto-reply`);
+        return;
+      }
+
       // ─── Business hours check — use user's saved aiHoursStart/End/Timezone ──
       {
         const tz = (user as any).aiTimezone ?? "America/Chicago";

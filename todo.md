@@ -650,3 +650,21 @@
 - [x] Reply Timing section: configurable min/max delay for first and follow-up replies
 - [x] Wire all training config into GPT system prompt dynamically at send time
 - [x] Add AI Training link to sidebar navigation (Brain icon)
+
+## Per-Conversation AI Pause / Resume
+
+- [ ] Add aiPaused boolean column to conversations schema
+- [ ] Push schema migration
+- [ ] Add conversations.pauseAi and conversations.resumeAi tRPC procedures
+- [ ] Add Pause AI / Resume AI button to Messenger conversation header
+- [ ] Show clear visual state (paused = orange badge, active = green badge)
+- [ ] Update smsEngine inbound handler to skip AI reply when conversation.aiPaused = true
+- [ ] Button label: "Pause AI" when active, "Resume AI Agent" when paused
+
+- [x] Add aiPaused boolean column to conversations schema
+- [x] Push schema migration
+- [x] Add conversations.pauseAi and conversations.resumeAi tRPC procedures
+- [x] Add Pause AI / Resume AI button to Messenger conversation header
+- [x] Show clear visual state (orange = paused, green = resume)
+- [x] Update smsEngine inbound handler to skip AI reply when conversation.aiPaused = true — only affects that conversation, not others
+- [x] Button label: "Pause AI" when active, "Resume AI Agent" when paused

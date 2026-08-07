@@ -29,6 +29,7 @@ import {
   Zap,
   Link2,
   ChevronRight,
+  PauseCircle,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useRef, useState } from "react";
@@ -239,6 +240,24 @@ export default function Messenger() {
       utils.conversations.list.invalidate();
     },
     onError: () => toast.error("Failed to update disposition"),
+  });
+
+  const pauseAi = trpc.conversations.pauseAi.useMutation({
+    onSuccess: () => {
+      utils.conversations.get.invalidate({ id: selectedId! });
+      utils.conversations.list.invalidate();
+      toast.success("AI paused — you can now reply manually");
+    },
+    onError: () => toast.error("Failed to pause AI"),
+  });
+
+  const resumeAi = trpc.conversations.resumeAi.useMutation({
+    onSuccess: () => {
+      utils.conversations.get.invalidate({ id: selectedId! });
+      utils.conversations.list.invalidate();
+      toast.success("AI agent resumed");
+    },
+    onError: () => toast.error("Failed to resume AI"),
   });
 
   const handleDisposition = (value: Disposition | null) => {
@@ -514,6 +533,32 @@ export default function Messenger() {
                       className="scale-75"
                     />
                   </div>
+                  {/* Pause AI / Resume AI button — only shown when AI is enabled for this conversation */}
+                  {conv?.aiEnabled && (
+                    (conv as any).aiPaused ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1.5 border-green-500 text-green-600 hover:bg-green-50"
+                        disabled={resumeAi.isPending}
+                        onClick={() => selectedId && resumeAi.mutate({ id: selectedId })}
+                      >
+                        <Bot className="h-3 w-3" />
+                        Resume AI Agent
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1.5 border-orange-400 text-orange-600 hover:bg-orange-50"
+                        disabled={pauseAi.isPending}
+                        onClick={() => selectedId && pauseAi.mutate({ id: selectedId })}
+                      >
+                        <PauseCircle className="h-3 w-3" />
+                        Pause AI
+                      </Button>
+                    )
+                  )}
                   {/* AI stage badge — always visible when AI is on */}
                   {conv?.aiEnabled && (() => {
                     const stage = (conv as any).aiStage as string | undefined ?? "intro";

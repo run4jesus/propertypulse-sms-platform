@@ -757,6 +757,34 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    pauseAi: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const { conversations: convsTable } = await import("../drizzle/schema");
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        const { eq, and } = await import("drizzle-orm");
+        await db.update(convsTable)
+          .set({ aiPaused: true } as any)
+          .where(and(eq(convsTable.id, input.id), eq(convsTable.userId, ctx.user.id)));
+        return { success: true };
+      }),
+
+    resumeAi: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const { conversations: convsTable } = await import("../drizzle/schema");
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new Error("DB unavailable");
+        const { eq, and } = await import("drizzle-orm");
+        await db.update(convsTable)
+          .set({ aiPaused: false } as any)
+          .where(and(eq(convsTable.id, input.id), eq(convsTable.userId, ctx.user.id)));
+        return { success: true };
+      }),
+
     assignLabel: protectedProcedure
       .input(z.object({ conversationId: z.number(), labelId: z.number() }))
       .mutation(async ({ ctx, input }) => {
