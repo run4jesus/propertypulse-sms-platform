@@ -592,3 +592,17 @@
 - [x] Create after-hours follow-up scheduled handler at /api/scheduled/after-hours-followup
 - [x] Register handler in index.ts
 - [ ] Deploy site and create heartbeat job (fires at business hours start time daily)
+
+## Dashboard Date Range Filtering
+
+- [ ] Update backend dashboard.stats procedure to accept dateFrom/dateTo parameters
+- [ ] Add date range preset selector to Dashboard header (Today, Last 7 Days, Last 30 Days, This Month, Custom)
+- [ ] Add custom date range picker (calendar) for custom range selection
+- [ ] Wire all KPI cards to use selected date range
+- [ ] Update "Today's Numbers" label to reflect selected range
+
+- [x] Update backend dashboard.stats procedure to accept dateFrom/dateTo parameters
+- [x] Add date range preset selector to Dashboard header (Today, Last 7 Days, Last 30 Days, This Month, Custom)
+- [x] Add custom date range picker (calendar) for custom range selection
+- [x] Wire all KPI cards to use selected date range
+- [x] Update "Today's Numbers" label to reflect selected range

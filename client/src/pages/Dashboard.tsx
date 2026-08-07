@@ -17,26 +17,61 @@ import {
   HandCoins,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon, ChevronDown } from "lucide-react";
+import type { DateRange } from "react-day-picker";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
 
-  // Always today — stable references
-  const todayStart = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-  const todayEnd = useMemo(() => {
-    const d = new Date();
-    d.setHours(23, 59, 59, 999);
-    return d;
-  }, []);
+  // Date range presets
+  type RangePreset = "today" | "7d" | "30d" | "month" | "custom";
+  const [preset, setPreset] = useState<RangePreset>("today");
+  const [customRange, setCustomRange] = useState<DateRange | undefined>();
+  const [customOpen, setCustomOpen] = useState(false);
+
+  const { dateFrom, dateTo, presetLabel } = useMemo(() => {
+    const now = new Date();
+    const startOfDay = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+    const endOfDay = (d: Date) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; };
+    if (preset === "today") {
+      return { dateFrom: startOfDay(now), dateTo: endOfDay(now), presetLabel: "Today" };
+    } else if (preset === "7d") {
+      const from = new Date(now); from.setDate(now.getDate() - 6);
+      return { dateFrom: startOfDay(from), dateTo: endOfDay(now), presetLabel: "Last 7 Days" };
+    } else if (preset === "30d") {
+      const from = new Date(now); from.setDate(now.getDate() - 29);
+      return { dateFrom: startOfDay(from), dateTo: endOfDay(now), presetLabel: "Last 30 Days" };
+    } else if (preset === "month") {
+      const from = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { dateFrom: startOfDay(from), dateTo: endOfDay(now), presetLabel: "This Month" };
+    } else {
+      // custom
+      const from = customRange?.from ?? startOfDay(now);
+      const to = customRange?.to ?? endOfDay(now);
+      const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      return {
+        dateFrom: startOfDay(from),
+        dateTo: endOfDay(to),
+        presetLabel: customRange?.from
+          ? `${fmt(customRange.from)}${customRange.to ? ` – ${fmt(customRange.to)}` : ""}`
+          : "Custom Range",
+      };
+    }
+  }, [preset, customRange]);
 
   const { data: stats, isLoading } = trpc.reporting.dashboard.useQuery({
-    startDate: todayStart,
-    endDate: todayEnd,
+    startDate: dateFrom,
+    endDate: dateTo,
   });
 
   const { data: campaigns } = trpc.reporting.campaigns.useQuery();
@@ -142,9 +177,54 @@ export default function Dashboard() {
           <p className="text-sm text-muted-foreground mt-0.5">{today}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs px-3 py-1.5">
-            Today's Numbers
-          </Badge>
+          {/* Date range selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 text-xs h-8">
+                <CalendarIcon className="h-3.5 w-3.5" />
+                {presetLabel}
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => setPreset("today")}>
+                Today
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setPreset("7d")}>
+                Last 7 Days
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setPreset("30d")}>
+                Last 30 Days
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setPreset("month")}>
+                This Month
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => { setPreset("custom"); setCustomOpen(true); }}>
+                Custom Range...
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Custom range calendar popover */}
+          <Popover open={customOpen} onOpenChange={setCustomOpen}>
+            <PopoverTrigger asChild>
+              <span />
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="range"
+                selected={customRange}
+                onSelect={(range) => {
+                  setCustomRange(range);
+                  if (range?.from && range?.to) setCustomOpen(false);
+                }}
+                numberOfMonths={2}
+                disabled={{ after: new Date() }}
+              />
+            </PopoverContent>
+          </Popover>
+
           <Button onClick={() => setLocation("/campaigns")}>
             <Zap className="h-4 w-4 mr-2" />
             New Campaign
