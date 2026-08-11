@@ -25,7 +25,7 @@ describe('TCP Litigator List API Integration', () => {
     const result = await checkLitigatorStatus(testPhone, creds.username, creds.password);
     expect(typeof result).toBe('boolean');
     expect([true, false]).toContain(result);
-  });
+  }, 20000);
 
   it('should return false if credentials are missing', async () => {
     const result = await checkLitigatorStatus(testPhone);

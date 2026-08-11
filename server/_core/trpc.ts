@@ -26,6 +26,13 @@ const requireOwnerUser = t.middleware(async opts => {
     throw new TRPCError({ code: "FORBIDDEN", message: "This account has Messenger-only access" });
   }
 
+  if (access.isWorkspaceAdmin) {
+    const db = await getDb();
+    const [owner] = db ? await db.select().from(users).where(eq(users.id, access.ownerUserId)).limit(1) : [];
+    if (!owner) throw new TRPCError({ code: "FORBIDDEN", message: "Workspace owner is unavailable" });
+    return next({ ctx: { ...ctx, user: owner, actorUser: ctx.user, isMessengerOnly: false } });
+  }
+
   return next({
     ctx: {
       ...ctx,

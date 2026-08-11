@@ -693,3 +693,7 @@
 - [x] Scope VA-visible conversations and contacts to the owner's workspace and assigned records
 - [x] Add VA-only sidebar/navigation and guard restricted routes server-side
 - [x] Add tests preventing a VA from accessing owner-only data and settings
+- [x] Extend team invitations and memberships with selectable Workspace Admin and Messenger Only roles
+- [x] Permit Workspace Admin members to operate the owner's full workspace without sharing credentials
+- [x] Add role selection, role display, and role-change controls in Team Access
+- [x] Verify Workspace Admin and Messenger Only permission behavior

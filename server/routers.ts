@@ -167,7 +167,7 @@ export const appRouter = router({
       if (!ctx.user) return { isMessengerOnly: false };
       const { getTeamAccess } = await import("./teamAccess");
       const access = await getTeamAccess(ctx.user.id);
-      return { isMessengerOnly: access.isMessengerOnly };
+      return { isMessengerOnly: access.isMessengerOnly, isWorkspaceAdmin: access.isWorkspaceAdmin, role: access.role };
     }),
     list: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();
@@ -179,7 +179,7 @@ export const appRouter = router({
       return { invitations, members };
     }),
     invite: protectedProcedure
-      .input(z.object({ email: z.string().email(), origin: z.string().url() }))
+      .input(z.object({ email: z.string().email(), origin: z.string().url(), role: z.enum(["workspace_admin", "messenger_va"]) }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -188,6 +188,7 @@ export const appRouter = router({
         await db.insert(teamInvitations).values({
           ownerUserId: ctx.user.id,
           email: input.email.trim().toLowerCase(),
+          role: input.role,
           token,
           expiresAt,
         });
@@ -201,7 +202,7 @@ export const appRouter = router({
         const [invite] = await db.select().from(teamInvitations).where(eq(teamInvitations.token, input.token)).limit(1);
         if (!invite || invite.status !== "pending" || invite.expiresAt < new Date()) throw new TRPCError({ code: "NOT_FOUND", message: "Invitation is invalid or expired" });
         if (invite.email !== ctx.user.email.trim().toLowerCase()) throw new TRPCError({ code: "FORBIDDEN", message: "Sign in with the email address that received this invitation" });
-        await db.insert(teamMembers).values({ ownerUserId: invite.ownerUserId, memberUserId: ctx.user.id, membershipKey: `${invite.ownerUserId}:${ctx.user.id}` });
+        await db.insert(teamMembers).values({ ownerUserId: invite.ownerUserId, memberUserId: ctx.user.id, membershipKey: `${invite.ownerUserId}:${ctx.user.id}`, role: invite.role });
         await db.update(teamInvitations).set({ status: "accepted", acceptedByUserId: ctx.user.id, acceptedAt: new Date() }).where(eq(teamInvitations.id, invite.id));
         return { success: true };
       }),
@@ -211,6 +212,16 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
         await db.update(teamMembers).set({ status: "revoked", revokedAt: new Date() }).where(and(eq(teamMembers.id, input.memberId), eq(teamMembers.ownerUserId, ctx.user.id)));
+        return { success: true };
+      }),
+    updateRole: protectedProcedure
+      .input(z.object({ memberId: z.number(), role: z.enum(["workspace_admin", "messenger_va"]) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+        await db.update(teamMembers)
+          .set({ role: input.role })
+          .where(and(eq(teamMembers.id, input.memberId), eq(teamMembers.ownerUserId, ctx.user.id), eq(teamMembers.status, "active")));
         return { success: true };
       }),
   }),

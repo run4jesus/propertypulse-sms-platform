@@ -11,7 +11,6 @@
  * In that case we fall back to GET /leads/?search=<address> to retrieve the existing lead.
  */
 
-const DEALMACHINE_API_KEY = process.env.DEALMACHINE_API_KEY ?? "";
 const DEALMACHINE_BASE = "https://api.dealmachine.com/public/v1";
 
 export interface DealMachineProperty {
@@ -72,7 +71,8 @@ export async function lookupPropertyValue(
   state: string,
   zip: string
 ): Promise<DealMachineProperty | null> {
-  if (!DEALMACHINE_API_KEY) {
+  const apiKey = process.env.DEALMACHINE_API_KEY ?? "";
+  if (!apiKey) {
     console.warn("[DealMachine] API key not configured — skipping property lookup");
     return null;
   }
@@ -87,7 +87,7 @@ export async function lookupPropertyValue(
 
     const addResp = await fetch(`${DEALMACHINE_BASE}/leads/`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${DEALMACHINE_API_KEY}` },
+      headers: { Authorization: `Bearer ${apiKey}` },
       body: formData,
     });
 
@@ -122,7 +122,7 @@ export async function lookupPropertyValue(
         `${DEALMACHINE_BASE}/leads/?search=${searchQuery}&limit=5`,
         {
           method: "GET",
-          headers: { Authorization: `Bearer ${DEALMACHINE_API_KEY}` },
+          headers: { Authorization: `Bearer ${apiKey}` },
         }
       );
 
