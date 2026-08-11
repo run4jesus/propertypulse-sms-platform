@@ -135,6 +135,7 @@ const menuGroups = [
       { icon: BarChart3, label: "Reporting", path: "/reporting" },
       { icon: CalendarDays, label: "Calendar", path: "/calendar" },
       { icon: Settings, label: "Settings", path: "/settings" },
+      { icon: Users2, label: "Team Access", path: "/team" },
     ],
   },
 ];
@@ -211,6 +212,8 @@ function DashboardLayoutContent({
 }) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
+  const { data: teamAccess } = trpc.team.myAccess.useQuery();
+  const isMessengerOnly = teamAccess?.isMessengerOnly === true;
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
@@ -236,6 +239,10 @@ function DashboardLayoutContent({
   useEffect(() => {
     if (isCollapsed) setIsResizing(false);
   }, [isCollapsed]);
+
+  useEffect(() => {
+    if (isMessengerOnly && !location.startsWith("/messenger")) setLocation("/messenger");
+  }, [isMessengerOnly, location, setLocation]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -292,7 +299,7 @@ function DashboardLayoutContent({
 
           {/* Nav */}
           <SidebarContent className="gap-0 py-2 overflow-y-auto">
-            {menuGroups.map((group) => (
+            {(isMessengerOnly ? [{ label: "Workspace", items: [{ icon: MessageSquare, label: "Messenger", path: "/messenger" }] }] : menuGroups).map((group) => (
               <div key={group.label} className="mb-1">
                 {!isCollapsed && (
                   <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">

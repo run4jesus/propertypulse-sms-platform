@@ -6,6 +6,8 @@ export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: User | null;
+  actorUser?: User | null;
+  isMessengerOnly?: boolean;
 };
 
 export async function createContext(

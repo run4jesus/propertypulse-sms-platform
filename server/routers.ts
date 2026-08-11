@@ -1,11 +1,12 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { randomUUID } from "crypto";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
 import { callOpenAI } from "./openai";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { messengerProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
   addContactToGroup,
   addContactToList,
@@ -122,7 +123,7 @@ import {
   getGoal, upsertGoal,
 } from "./db-bos";
 import { and, eq, sql } from "drizzle-orm";
-import { contacts, contactManagement as contactManagementTable, contactListMembers, contactLists, phoneNumbers as phoneNumbersTable, litigatorNumbers as litigatorNumbersTable } from "../drizzle/schema";
+import { contacts, contactManagement as contactManagementTable, contactListMembers, contactLists, phoneNumbers as phoneNumbersTable, litigatorNumbers as litigatorNumbersTable, teamInvitations, teamMembers } from "../drizzle/schema";
 
 export const appRouter = router({
   system: systemRouter,
@@ -159,6 +160,59 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+  }),
+
+  team: router({
+    myAccess: publicProcedure.query(async ({ ctx }) => {
+      if (!ctx.user) return { isMessengerOnly: false };
+      const { getTeamAccess } = await import("./teamAccess");
+      const access = await getTeamAccess(ctx.user.id);
+      return { isMessengerOnly: access.isMessengerOnly };
+    }),
+    list: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return { invitations: [], members: [] };
+      const [invitations, members] = await Promise.all([
+        db.select().from(teamInvitations).where(eq(teamInvitations.ownerUserId, ctx.user.id)),
+        db.select().from(teamMembers).where(eq(teamMembers.ownerUserId, ctx.user.id)),
+      ]);
+      return { invitations, members };
+    }),
+    invite: protectedProcedure
+      .input(z.object({ email: z.string().email(), origin: z.string().url() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+        const token = randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        await db.insert(teamInvitations).values({
+          ownerUserId: ctx.user.id,
+          email: input.email.trim().toLowerCase(),
+          token,
+          expiresAt,
+        });
+        return { inviteUrl: `${input.origin}/accept-invite?token=${token}`, expiresAt };
+      }),
+    accept: protectedProcedure
+      .input(z.object({ token: z.string().min(32) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db || !ctx.user.email) throw new TRPCError({ code: "BAD_REQUEST", message: "Your account needs an email address to accept this invitation" });
+        const [invite] = await db.select().from(teamInvitations).where(eq(teamInvitations.token, input.token)).limit(1);
+        if (!invite || invite.status !== "pending" || invite.expiresAt < new Date()) throw new TRPCError({ code: "NOT_FOUND", message: "Invitation is invalid or expired" });
+        if (invite.email !== ctx.user.email.trim().toLowerCase()) throw new TRPCError({ code: "FORBIDDEN", message: "Sign in with the email address that received this invitation" });
+        await db.insert(teamMembers).values({ ownerUserId: invite.ownerUserId, memberUserId: ctx.user.id, membershipKey: `${invite.ownerUserId}:${ctx.user.id}` });
+        await db.update(teamInvitations).set({ status: "accepted", acceptedByUserId: ctx.user.id, acceptedAt: new Date() }).where(eq(teamInvitations.id, invite.id));
+        return { success: true };
+      }),
+    revoke: protectedProcedure
+      .input(z.object({ memberId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+        await db.update(teamMembers).set({ status: "revoked", revokedAt: new Date() }).where(and(eq(teamMembers.id, input.memberId), eq(teamMembers.ownerUserId, ctx.user.id)));
+        return { success: true };
+      }),
   }),
 
   // ─── Settings ──────────────────────────────────────────────────────────────
@@ -753,14 +807,14 @@ export const appRouter = router({
 
   // ─── Conversations ───────────────────────────────────────────────────────────
   conversations: router({
-    list: protectedProcedure
-      .input(z.object({ status: z.string().optional(), labelId: z.number().optional(), search: z.string().optional(), limit: z.number().optional(), offset: z.number().optional() }).optional())
+    list: messengerProcedure
+     .input(z.object({ status: z.string().optional(), labelId: z.number().optional(), search: z.string().optional(), limit: z.number().optional(), offset: z.number().optional() }).optional())
       .query(async ({ ctx, input }) => {
         return getConversations(ctx.user.id, input);
       }),
 
-    get: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    get: messengerProcedure
+     .input(z.object({ id: z.number() }))
       .query(async ({ ctx, input }) => {
         const conv = await getConversationById(input.id, ctx.user.id);
         if (!conv) return null;
@@ -810,8 +864,8 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    pauseAi: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    pauseAi: messengerProcedure
+     .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const { conversations: convsTable } = await import("../drizzle/schema");
         const { getDb } = await import("./db");
@@ -824,8 +878,8 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    resumeAi: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    resumeAi: messengerProcedure
+     .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const { conversations: convsTable } = await import("../drizzle/schema");
         const { getDb } = await import("./db");
@@ -917,8 +971,8 @@ export const appRouter = router({
       }),
 
     // ─── VA: Push lead to Podio CRM ───────────────────────────────────────────
-    pushToPodio: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    pushToPodio: messengerProcedure
+     .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("DB unavailable");
@@ -960,8 +1014,8 @@ export const appRouter = router({
       }),
 
     // ─── Linked conversations (same property address) ───────────────────────────────────────────────────
-    getLinked: protectedProcedure
-      .input(z.object({ conversationId: z.number() }))
+    getLinked: messengerProcedure
+     .input(z.object({ conversationId: z.number() }))
       .query(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) return [];
@@ -1000,8 +1054,8 @@ export const appRouter = router({
       }),
 
     // ─── Property timeline: all messages across all convos for same address ───────────────────────────────────────────────────
-    getPropertyTimeline: protectedProcedure
-      .input(z.object({ conversationId: z.number() }))
+    getPropertyTimeline: messengerProcedure
+     .input(z.object({ conversationId: z.number() }))
       .query(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) return [];
@@ -1064,7 +1118,7 @@ export const appRouter = router({
 
   // ─── Messages ────────────────────────────────────────────────────────────────
   messages: router({
-    list: protectedProcedure
+    list: messengerProcedure
       .input(z.object({ conversationId: z.number() }))
       .query(async ({ ctx, input }) => {
         const conversation = await getConversationById(input.conversationId, ctx.user.id);
@@ -1073,13 +1127,13 @@ export const appRouter = router({
       }),
 
     // Unified thread: all messages for a contact's phone number across all sender numbers
-    listByContactPhone: protectedProcedure
+    listByContactPhone: messengerProcedure
       .input(z.object({ contactPhone: z.string() }))
       .query(async ({ ctx, input }) => {
         return getMessagesByContactPhone(ctx.user.id, input.contactPhone);
       }),
 
-    send: protectedProcedure
+    send: messengerProcedure
       .input(z.object({ conversationId: z.number(), body: z.string().trim().min(1).max(1600), isAiGenerated: z.boolean().optional() }))
       .mutation(async ({ ctx, input }) => {
         const conversationData = await getConversationById(input.conversationId, ctx.user.id);

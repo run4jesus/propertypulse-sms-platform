@@ -36,12 +36,15 @@ import DealTracker from "./pages/DealTracker";
 import Lists from "./pages/Lists";
 import TestAI from "./pages/TestAI";
 import AITraining from "./pages/AITraining";
+import Team from "./pages/Team";
+import AcceptInvite from "./pages/AcceptInvite";
 
 function Router() {
   return (
     <Switch>
       {/* Full-screen pages — outside DashboardLayout */}
       <Route path="/campaigns/:id/send-queue" component={SendQueue} />
+      <Route path="/accept-invite" component={AcceptInvite} />
 
       {/* All other pages — inside DashboardLayout */}
       <Route>
@@ -78,6 +81,7 @@ function Router() {
             <Route path="/lists" component={Lists} />
             <Route path="/test-ai" component={TestAI} />
             <Route path="/ai-training" component={AITraining} />
+            <Route path="/team" component={Team} />
             <Route path="/contacts/import" component={Contacts} />
             <Route path="/404" component={NotFound} />
             <Route component={NotFound} />

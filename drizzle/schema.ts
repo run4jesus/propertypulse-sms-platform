@@ -54,6 +54,33 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+// ─── Team Access ──────────────────────────────────────────────────────────────
+// VAs retain their own login while being granted a tightly scoped view into an
+// owner's Messenger workspace. They are never given the owner's credentials.
+export const teamMembers = mysqlTable("team_members", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerUserId: int("ownerUserId").notNull(),
+  memberUserId: int("memberUserId").notNull(),
+  membershipKey: varchar("membershipKey", { length: 128 }).notNull().unique(),
+  role: mysqlEnum("role", ["messenger_va"]).default("messenger_va").notNull(),
+  status: mysqlEnum("status", ["active", "revoked"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  revokedAt: timestamp("revokedAt"),
+});
+
+export const teamInvitations = mysqlTable("team_invitations", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerUserId: int("ownerUserId").notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  role: mysqlEnum("role", ["messenger_va"]).default("messenger_va").notNull(),
+  token: varchar("token", { length: 128 }).notNull().unique(),
+  status: mysqlEnum("status", ["pending", "accepted", "revoked", "expired"]).default("pending").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  acceptedByUserId: int("acceptedByUserId"),
+  acceptedAt: timestamp("acceptedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 // ─── Phone Numbers ────────────────────────────────────────────────────────────
 export const phoneNumbers = mysqlTable("phone_numbers", {
   id: int("id").autoincrement().primaryKey(),

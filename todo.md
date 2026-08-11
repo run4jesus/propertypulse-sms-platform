@@ -323,6 +323,8 @@
 ## Auto-configure Webhooks on Number Purchase
 - [x] After purchasing a number via TextGrid API, immediately call TextGrid UpdateNumber API to set smsUrl (POST) and statuscallBackUrl (POST)
 - [x] No manual webhook setup needed for any future numbers purchased through LotPulse
+- [x] Add protected operation to update secure callback URLs on all existing TextGrid numbers
+- [x] Apply and verify protected callback URLs on existing TextGrid numbers
 
 ## Hot Lead In-App Notification
 - [ ] When AI assigns Hot Lead or Warm Lead label to a conversation, trigger notifyOwner alert
@@ -680,3 +682,14 @@
 - [x] Add tests for delayed-reply persistence, duplicate webhooks, and cross-user access denial
 - [ ] Add operational failure visibility for pending AI replies, failed sends, and webhook errors
 - [x] Produce a controlled-pilot launch checklist and hardening findings report
+
+## Team Member Invitations and VA Access
+
+- [x] Audit current role-based access controls and user ownership model
+- [x] Add a Messenger-only VA role with no access to admin settings, costs, campaigns, or secrets
+- [x] Add secure email invitation and acceptance flow for team members
+- [x] Add Settings UI to invite, review, revoke, and change team-member access
+- [x] Add workspace membership and invitation schema with an owner-scoped VA role
+- [x] Scope VA-visible conversations and contacts to the owner's workspace and assigned records
+- [x] Add VA-only sidebar/navigation and guard restricted routes server-side
+- [x] Add tests preventing a VA from accessing owner-only data and settings
