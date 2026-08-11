@@ -671,6 +671,7 @@
 
 ## Production Reliability & Security Hardening
 
+- [x] Activate and verify the project-level sms-dispatch heartbeat after publication
 - [x] Audit all inbound SMS and delivery-status webhook authentication, payload validation, and duplicate-event handling
 - [x] Replace in-process AI reply delays with durable database-backed scheduled replies
 - [x] Add exactly-once guardrails for queued AI replies and outbound send attempts

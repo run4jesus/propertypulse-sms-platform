@@ -29,6 +29,8 @@ The durable dispatcher must be activated only after the current checkpoint is pu
 | Method | `POST` |
 | Purpose | Process campaign batches, existing follow-ups, and due AI replies once per minute. |
 
+The active production dispatcher task ID is **`7s3HSoaCJgADQYbfRRhZc7`**. Retain this ID for pause, resume, log review, or deletion.
+
 Existing TextGrid numbers must point to the production callback URLs below. Keep the token private; do not paste it in message text, CSV files, or public documentation.
 
 ```text
