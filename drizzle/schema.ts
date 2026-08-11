@@ -225,7 +225,8 @@ export const messages = mysqlTable("messages", {
   userId: int("userId").notNull(),
   direction: mysqlEnum("direction", ["outbound", "inbound"]).notNull(),
   body: text("body").notNull(),
-  twilioSid: varchar("twilioSid", { length: 64 }),
+  // Provider message IDs are globally unique and make webhook retries idempotent.
+  twilioSid: varchar("twilioSid", { length: 64 }).unique(),
   status: mysqlEnum("status", ["queued", "sent", "delivered", "failed", "received", "undelivered"]).default("queued").notNull(),
   isAiGenerated: boolean("isAiGenerated").default(false).notNull(),
   campaignId: int("campaignId"),
@@ -501,6 +502,48 @@ export const followUpQueue = mysqlTable("follow_up_queue", {
 });
 
 export type FollowUpQueue = typeof followUpQueue.$inferSelect;
+
+// ─── AI Reply Queue ───────────────────────────────────────────────────────────
+// Durable deferred AI replies. A scheduled dispatcher claims due rows and sends
+// them once; this survives server restarts and does not rely on in-process timers.
+export const aiReplyQueue = mysqlTable("ai_reply_queue", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  conversationId: int("conversationId").notNull(),
+  contactId: int("contactId").notNull(),
+  phoneNumberId: int("phoneNumberId"),
+  sourceMessageSid: varchar("sourceMessageSid", { length: 128 }).notNull(),
+  // One durable task per provider inbound event. This is the queue's idempotency key.
+  dedupeKey: varchar("dedupeKey", { length: 191 }).notNull().unique(),
+  replyBody: text("replyBody").notNull(),
+  nextStage: mysqlEnum("nextStage", ["intro", "price_ask", "needs_offer", "handoff", "not_interested"]).notNull(),
+  scheduledAt: timestamp("scheduledAt").notNull(),
+  awaitingBusinessHours: boolean("awaitingBusinessHours").default(false).notNull(),
+  status: mysqlEnum("status", ["pending", "processing", "sent", "cancelled", "failed"]).default("pending").notNull(),
+  attemptCount: int("attemptCount").default(0).notNull(),
+  lockToken: varchar("lockToken", { length: 64 }),
+  lockedAt: timestamp("lockedAt"),
+  sentAt: timestamp("sentAt"),
+  providerSid: varchar("providerSid", { length: 64 }),
+  lastError: text("lastError"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AiReplyQueue = typeof aiReplyQueue.$inferSelect;
+
+// ─── Webhook Events ───────────────────────────────────────────────────────────
+// Claims provider callbacks before processing so retries cannot create duplicate
+// messages, labels, AI replies, or delivery counters.
+export const webhookEvents = mysqlTable("webhook_events", {
+  id: int("id").autoincrement().primaryKey(),
+  eventId: varchar("eventId", { length: 191 }).notNull().unique(),
+  eventType: mysqlEnum("eventType", ["inbound_sms", "delivery_status"]).notNull(),
+  providerMessageSid: varchar("providerMessageSid", { length: 64 }).notNull(),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+});
+
+export type WebhookEvent = typeof webhookEvents.$inferSelect;
 
 // ─── Litigator Numbers ────────────────────────────────────────────────────────
 // Manually uploaded litigator phone numbers — always blocked from all campaigns

@@ -25,6 +25,14 @@ import {
 import { getDb } from "./db";
 import { callOpenAI } from "./openai";
 import { lookupPropertyValue, formatDollars } from "./dealmachine";
+import { queueAiReply } from "./aiReplyQueue";
+import { sendTextGridSms } from "./textgrid";
+import {
+  hasValidTextGridWebhookSecret,
+  parseDeliveryStatusPayload,
+  parseInboundSmsPayload,
+} from "./webhookSecurity";
+import { claimWebhookEvent, releaseWebhookEvent } from "./webhookEvents";
 
 // ─── Opt-out keywords ────────────────────────────────────────────────────────
 const OPT_OUT_KEYWORDS = ["stop", "unsubscribe", "quit", "cancel", "end", "stopall", "remove"];
@@ -143,41 +151,9 @@ export async function lookupPhoneLineType(
 }
 
 // ─── TextGrid / Twilio SMS sender ────────────────────────────────────────────
-export async function sendSms(opts: {
-  accountSid: string;
-  authToken: string;
-  from: string;
-  to: string;
-  body: string;
-}): Promise<{ sid: string; status: string } | null> {
-  try {
-    const baseUrl = `https://api.textgrid.com/2010-04-01/Accounts/${opts.accountSid}/Messages.json`;
-    const params = new URLSearchParams({
-      From: opts.from,
-      To: opts.to,
-      Body: opts.body,
-    });
-    const credentials = Buffer.from(`${opts.accountSid}:${opts.authToken}`).toString("base64");
-    const response = await fetch(baseUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${credentials}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params.toString(),
-    });
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("[SMS] Send failed:", err);
-      return null;
-    }
-    const data = (await response.json()) as { sid: string; status: string };
-    return data;
-  } catch (err) {
-    console.error("[SMS] Send error:", err);
-    return null;
-  }
-}
+// Maintains the existing public export while sharing the provider transport with
+// the durable AI queue worker.
+export const sendSms = sendTextGridSms;
 
 // ─── Inbound webhook handler ─────────────────────────────────────────────────
 export async function handleInboundSms(
@@ -559,24 +535,8 @@ export async function handleInboundSms(
         return;
       }
 
-      // ─── Business hours check — use user's saved aiHoursStart/End/Timezone ──
-      {
-        const tz = (user as any).aiTimezone ?? "America/Chicago";
-        const startHour = (user as any).aiHoursStart ?? 8;
-        const endHour = (user as any).aiHoursEnd ?? 20;
-        const currentHour = parseInt(
-          new Intl.DateTimeFormat("en-US", {
-            timeZone: tz,
-            hour: "numeric",
-            hour12: false,
-          }).format(new Date()),
-          10
-        );
-        if (currentHour < startHour || currentHour >= endHour) {
-          console.log(`[SMS] AI outside business hours (${tz} hour: ${currentHour}, window: ${startHour}–${endHour}) — skipping reply for conversation ${conversation.id}`);
-          return;
-        }
-      }
+      // Business-hours routing happens in the durable queue. This records after-
+      // hours seller messages safely and sends only after the next allowed window.
 
       // Get recent messages for context
       const recentMsgs = await db
@@ -755,60 +715,17 @@ BRANCHING RULES:
       }
 
       if (replyBody) {
-        const fromPhone = await db
-          .select()
-          .from(phoneNumbers)
-          .where(eq(phoneNumbers.id, phoneRecord.id))
-          .limit(1);
-
-        // ─── Human-like reply delay ─────────────────────────────────────────────
-        // Determine if this is the first AI reply in this conversation or a follow-up.
-        // First reply: 2–8 minutes. Follow-up replies: 1–5 minutes.
-        // Delays are randomized within the range to feel natural.
         const priorAiReplies = recentMsgs.filter((m) => m.direction === "outbound" && m.isAiGenerated).length;
-        const isFirstReply = priorAiReplies === 0;
-        const delayFirstMin = (user as any).aiReplyDelayFirstMin ?? 1;
-        const delayFirstMax = (user as any).aiReplyDelayFirstMax ?? 2;
-        const delayFollowMin = (user as any).aiReplyDelayFollowMin ?? 1;
-        const delayFollowMax = (user as any).aiReplyDelayFollowMax ?? 2;
-        const minDelay = isFirstReply ? delayFirstMin : delayFollowMin;
-        const maxDelay = isFirstReply ? delayFirstMax : delayFollowMax;
-        const delayMs = (Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay) * 60 * 1000;
-        console.log(`[SMS] AI reply delayed ${Math.round(delayMs / 60000)} min (${isFirstReply ? "first" : "follow-up"} reply) for conversation ${conversation.id}`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-
-        const result = await sendSms({
-          accountSid: user.twilioAccountSid,
-          authToken: user.twilioAuthToken,
-          from: fromPhone[0]?.phoneNumber ?? normalizedTo,
-          to: normalizedFrom,
-          body: replyBody,
+        await queueAiReply({
+          user,
+          conversation,
+          contact,
+          phoneNumberId: phoneRecord.id,
+          sourceMessageSid: MessageSid,
+          replyBody,
+          nextStage: nextStage as "intro" | "price_ask" | "needs_offer" | "handoff" | "not_interested",
+          isFirstReply: priorAiReplies === 0,
         });
-
-        if (result) {
-          await db.insert(messages).values({
-            conversationId: conversation.id,
-            userId,
-            direction: "outbound",
-            body: replyBody,
-            twilioSid: result.sid,
-            status: "sent",
-            isAiGenerated: true,
-          });
-
-          // Advance the stage in the database
-          await db
-            .update(conversations)
-            .set({
-              lastMessageAt: new Date(),
-              lastMessagePreview: replyBody.slice(0, 200),
-              status: "active",
-              aiStage: nextStage as "intro" | "price_ask" | "needs_offer" | "handoff" | "not_interested",
-            } as any)
-            .where(eq(conversations.id, conversation.id));
-
-          console.log(`[SMS] AI reply sent for conversation ${conversation.id} — stage: ${currentStage} → ${nextStage}`);
-        }
       }
     } catch (err) {
       console.error("[SMS] AI auto-reply error:", err);
@@ -1253,25 +1170,36 @@ export async function processCampaignBatches() {
 export function registerSmsRoutes(app: Express) {
   // TextGrid/Twilio inbound SMS webhook
   app.post("/api/sms/inbound", async (req, res) => {
+    let eventId: string | null = null;
     try {
-      const { From, To, Body, MessageSid } = req.body as {
-        From: string;
-        To: string;
-        Body: string;
-        MessageSid: string;
-      };
-
-      if (!From || !To || !Body) {
-        res.status(400).send("Missing required fields");
+      if (!hasValidTextGridWebhookSecret(req)) {
+        res.status(401).send("Unauthorized webhook");
         return;
       }
 
-      await handleInboundSms(From, To, Body, MessageSid ?? "");
+      const payload = parseInboundSmsPayload(req.body);
+      if (!payload) {
+        res.status(400).send("Invalid inbound payload");
+        return;
+      }
+
+      eventId = `inbound:${payload.MessageSid}`;
+      const claimed = await claimWebhookEvent(
+        eventId,
+        "inbound_sms",
+        payload.MessageSid
+      );
+      if (claimed) {
+        await handleInboundSms(payload.From, payload.To, payload.Body, payload.MessageSid);
+      } else {
+        console.log(`[Webhook] Ignored duplicate inbound event ${payload.MessageSid}`);
+      }
 
       // TextGrid/Twilio expects a TwiML response or empty 200
       res.set("Content-Type", "text/xml");
       res.send(`<?xml version="1.0" encoding="UTF-8"?><Response></Response>`);
     } catch (err) {
+      if (eventId) await releaseWebhookEvent(eventId).catch(() => undefined);
       console.error("[SMS] Webhook error:", err);
       res.status(500).send("Internal error");
     }
@@ -1279,50 +1207,67 @@ export function registerSmsRoutes(app: Express) {
 
   // Status callback webhook (delivery receipts)
   app.post("/api/sms/status", async (req, res) => {
+    let eventId: string | null = null;
     try {
-      const { MessageSid, MessageStatus } = req.body as {
-        MessageSid: string;
-        MessageStatus: string;
+      if (!hasValidTextGridWebhookSecret(req)) {
+        res.status(401).send("Unauthorized webhook");
+        return;
+      }
+
+      const payload = parseDeliveryStatusPayload(req.body);
+      if (!payload) {
+        res.status(400).send("Invalid status payload");
+        return;
+      }
+
+      eventId = `status:${payload.MessageSid}:${payload.MessageStatus}`;
+      const claimed = await claimWebhookEvent(
+        eventId,
+        "delivery_status",
+        payload.MessageSid
+      );
+      if (!claimed) {
+        console.log(`[Webhook] Ignored duplicate delivery event ${payload.MessageSid}:${payload.MessageStatus}`);
+        return res.status(200).send("OK");
+      }
+
+      const statusMap: Record<string, "queued" | "sent" | "delivered" | "failed" | "undelivered"> = {
+        queued: "queued",
+        sent: "sent",
+        delivered: "delivered",
+        failed: "failed",
+        undelivered: "undelivered",
       };
+      const mappedStatus = statusMap[payload.MessageStatus];
+      if (!mappedStatus) return res.status(200).send("OK");
 
-      if (MessageSid && MessageStatus) {
-        const db = await getDb();
-        if (db) {
-          const statusMap: Record<string, "queued" | "sent" | "delivered" | "failed" | "received" | "undelivered"> = {
-            queued: "queued",
-            sent: "sent",
-            delivered: "delivered",
-            failed: "failed",
-            undelivered: "undelivered",
-          };
-          const mappedStatus = statusMap[MessageStatus];
-          if (mappedStatus) {
-            await db
-              .update(messages)
-              .set({ status: mappedStatus })
-              .where(eq(messages.twilioSid, MessageSid));
+      const db = await getDb();
+      if (db) {
+        const [message] = await db.select().from(messages)
+          .where(eq(messages.twilioSid, payload.MessageSid))
+          .limit(1);
+        if (message) {
+          const statusRank: Record<string, number> = { queued: 0, sent: 1, delivered: 2, failed: 2, undelivered: 2 };
+          const currentRank = statusRank[message.status] ?? -1;
+          const nextRank = statusRank[mappedStatus];
+          const isTerminal = ["delivered", "failed", "undelivered"].includes(message.status);
 
-            // Update campaign delivery counters
-            if (mappedStatus === "delivered") {
-              await db
-                .update(campaigns)
+          // Never downgrade delivery state or replace one terminal state with another.
+          if (!isTerminal && nextRank >= currentRank) {
+            await db.update(messages).set({ status: mappedStatus }).where(and(
+              eq(messages.id, message.id),
+              eq(messages.status, message.status)
+            ));
+
+            if (message.campaignId && mappedStatus === "delivered") {
+              await db.update(campaigns)
                 .set({ delivered: sql`${campaigns.delivered} + 1` })
-                .where(
-                  sql`${campaigns.id} IN (SELECT campaignId FROM messages WHERE twilioSid = ${MessageSid} LIMIT 1)`
-                );
-            } else if (mappedStatus === "failed" || mappedStatus === "undelivered") {
-              // Increment failed count (uses the 'failed' column if it exists, otherwise log)
-              try {
-                await db
-                  .update(campaigns)
-                  .set({ failed: sql`COALESCE(${campaigns.failed}, 0) + 1` })
-                  .where(
-                    sql`${campaigns.id} IN (SELECT campaignId FROM messages WHERE twilioSid = ${MessageSid} LIMIT 1)`
-                  );
-              } catch (_colErr) {
-                // Column may not exist yet — log and continue
-                console.warn("[SMS] Could not increment failed count (column may be missing):", _colErr);
-              }
+                .where(eq(campaigns.id, message.campaignId));
+            }
+            if (message.campaignId && (mappedStatus === "failed" || mappedStatus === "undelivered")) {
+              await db.update(campaigns)
+                .set({ failed: sql`COALESCE(${campaigns.failed}, 0) + 1` })
+                .where(eq(campaigns.id, message.campaignId));
             }
           }
         }
@@ -1330,22 +1275,14 @@ export function registerSmsRoutes(app: Express) {
 
       res.status(200).send("OK");
     } catch (err) {
+      if (eventId) await releaseWebhookEvent(eventId).catch(() => undefined);
       console.error("[SMS] Status callback error:", err);
       res.status(500).send("Internal error");
     }
   });
 
-  // Start the batch send engine — runs every 60 seconds
-  setInterval(async () => {
-    try {
-      await processCampaignBatches();
-    } catch (err) {
-      console.error("[BatchEngine] Tick error:", err);
-    }
-  }, 60_000);
-
   console.log("[SMS] Routes registered: /api/sms/inbound, /api/sms/status");
-  console.log("[BatchEngine] Started — ticking every 60 seconds");
+  console.log("[SMS] Campaigns and queued AI replies are dispatched by the authenticated scheduled worker");
 }
 
 // ─── Utility ──────────────────────────────────────────────────────────────────

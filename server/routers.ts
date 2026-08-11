@@ -1,5 +1,6 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
 import { callOpenAI } from "./openai";
@@ -110,6 +111,7 @@ import {
 } from "./db";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
+import { sendTextGridSms } from "./textgrid";
 import { getDb } from "./db";
 import {
   getDeals, getDealById, createDeal, updateDeal, deleteDeal, getDealStats,
@@ -134,7 +136,23 @@ export const appRouter = router({
           await updateUserTwilio(opts.ctx.user.id, ENV.textgridAccountSid, ENV.textgridAuthToken);
         }
       }
-      return opts.ctx.user;
+      if (!opts.ctx.user) return null;
+
+      // Never serialize integration credentials or private AI/TCPA configuration
+      // to the browser. The frontend needs identity only; server procedures use
+      // the complete user record internally when an integration call is needed.
+      const {
+        id,
+        openId,
+        name,
+        email,
+        loginMethod,
+        role,
+        createdAt,
+        updatedAt,
+        lastSignedIn,
+      } = opts.ctx.user;
+      return { id, openId, name, email, loginMethod, role, createdAt, updatedAt, lastSignedIn };
     }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
@@ -291,11 +309,17 @@ export const appRouter = router({
         const body = new URLSearchParams();
         body.set("PhoneNumber", input.phoneNumber);
         if (input.friendlyName) body.set("FriendlyName", input.friendlyName);
-        // Always set webhooks to LotPulse so no manual setup is needed
+        // Always set authenticated LotPulse callbacks so no manual webhook setup
+        // is needed for newly purchased numbers.
         const lotpulseBase = "https://lotpulsesms-zmwera2y.manus.space";
-        body.set("SmsUrl", input.webhookUrl || `${lotpulseBase}/api/sms/inbound`);
+        const webhookSecret = process.env.TEXTGRID_WEBHOOK_SECRET;
+        if (!webhookSecret) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Webhook security is not configured" });
+        }
+        const callbackToken = encodeURIComponent(webhookSecret);
+        body.set("SmsUrl", input.webhookUrl || `${lotpulseBase}/api/sms/inbound?token=${callbackToken}`);
         body.set("SmsMethod", "POST");
-        body.set("StatusCallback", `${lotpulseBase}/api/sms/status`);
+        body.set("StatusCallback", `${lotpulseBase}/api/sms/status?token=${callbackToken}`);
         body.set("StatusCallbackMethod", "POST");
         const url = `https://api.textgrid.com/2010-04-01/Accounts/${user.twilioAccountSid}/IncomingPhoneNumbers.json`;
         const resp = await fetch(url, {
@@ -668,6 +692,13 @@ export const appRouter = router({
     assignLabel: protectedProcedure
       .input(z.object({ contactId: z.number(), labelId: z.number() }))
       .mutation(async ({ ctx, input }) => {
+        const [contact, userLabels] = await Promise.all([
+          getContactById(input.contactId, ctx.user.id),
+          getLabels(ctx.user.id),
+        ]);
+        if (!contact || !userLabels.some((label) => label.id === input.labelId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Contact or label not found" });
+        }
         await assignLabelToContact(input.contactId, input.labelId);
         return { success: true };
       }),
@@ -675,6 +706,13 @@ export const appRouter = router({
     removeLabel: protectedProcedure
       .input(z.object({ contactId: z.number(), labelId: z.number() }))
       .mutation(async ({ ctx, input }) => {
+        const [contact, userLabels] = await Promise.all([
+          getContactById(input.contactId, ctx.user.id),
+          getLabels(ctx.user.id),
+        ]);
+        if (!contact || !userLabels.some((label) => label.id === input.labelId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Contact or label not found" });
+        }
         await removeLabelFromContact(input.contactId, input.labelId);
         return { success: true };
       }),
@@ -682,12 +720,21 @@ export const appRouter = router({
     getLabels: protectedProcedure
       .input(z.object({ contactId: z.number() }))
       .query(async ({ ctx, input }) => {
+        const contact = await getContactById(input.contactId, ctx.user.id);
+        if (!contact) throw new TRPCError({ code: "FORBIDDEN", message: "Contact not found" });
         return getContactLabels(input.contactId);
       }),
 
     addToList: protectedProcedure
       .input(z.object({ contactId: z.number(), listId: z.number() }))
       .mutation(async ({ ctx, input }) => {
+        const [contact, userLists] = await Promise.all([
+          getContactById(input.contactId, ctx.user.id),
+          getContactLists(ctx.user.id),
+        ]);
+        if (!contact || !userLists.some((list) => list.id === input.listId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Contact or list not found" });
+        }
         await addContactToList(input.contactId, input.listId);
         return { success: true };
       }),
@@ -730,6 +777,12 @@ export const appRouter = router({
     getOrCreate: protectedProcedure
       .input(z.object({ contactId: z.number(), phoneNumberId: z.number().optional() }))
       .mutation(async ({ ctx, input }) => {
+        const contact = await getContactById(input.contactId, ctx.user.id);
+        const hasValidPhone = input.phoneNumberId === undefined || (await getPhoneNumbers(ctx.user.id))
+          .some((phoneNumber) => phoneNumber.id === input.phoneNumberId);
+        if (!contact || !hasValidPhone) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Contact or sending number not found" });
+        }
         return getOrCreateConversation(ctx.user.id, input.contactId, input.phoneNumberId);
       }),
 
@@ -788,6 +841,13 @@ export const appRouter = router({
     assignLabel: protectedProcedure
       .input(z.object({ conversationId: z.number(), labelId: z.number() }))
       .mutation(async ({ ctx, input }) => {
+        const [conversation, userLabels] = await Promise.all([
+          getConversationById(input.conversationId, ctx.user.id),
+          getLabels(ctx.user.id),
+        ]);
+        if (!conversation || !userLabels.some((label) => label.id === input.labelId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Conversation or label not found" });
+        }
         await assignLabelToConversation(input.conversationId, input.labelId);
 
         // Trigger Podio push + owner notification when Hot Lead or Warm Lead is manually assigned
@@ -845,6 +905,13 @@ export const appRouter = router({
     removeLabel: protectedProcedure
       .input(z.object({ conversationId: z.number(), labelId: z.number() }))
       .mutation(async ({ ctx, input }) => {
+        const [conversation, userLabels] = await Promise.all([
+          getConversationById(input.conversationId, ctx.user.id),
+          getLabels(ctx.user.id),
+        ]);
+        if (!conversation || !userLabels.some((label) => label.id === input.labelId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Conversation or label not found" });
+        }
         await removeLabelFromConversation(input.conversationId, input.labelId);
         return { success: true };
       }),
@@ -1000,6 +1067,8 @@ export const appRouter = router({
     list: protectedProcedure
       .input(z.object({ conversationId: z.number() }))
       .query(async ({ ctx, input }) => {
+        const conversation = await getConversationById(input.conversationId, ctx.user.id);
+        if (!conversation) throw new TRPCError({ code: "FORBIDDEN", message: "Conversation not found" });
         return getMessages(input.conversationId);
       }),
 
@@ -1011,13 +1080,42 @@ export const appRouter = router({
       }),
 
     send: protectedProcedure
-      .input(z.object({ conversationId: z.number(), body: z.string(), isAiGenerated: z.boolean().optional() }))
+      .input(z.object({ conversationId: z.number(), body: z.string().trim().min(1).max(1600), isAiGenerated: z.boolean().optional() }))
       .mutation(async ({ ctx, input }) => {
+        const conversationData = await getConversationById(input.conversationId, ctx.user.id);
+        if (!conversationData) throw new TRPCError({ code: "FORBIDDEN", message: "Conversation not found" });
+        if (conversationData.contact.optedOut) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "This contact has opted out and cannot be messaged" });
+        }
+
+        const senderNumbers = await getPhoneNumbers(ctx.user.id);
+        const sender = senderNumbers.find((number) => number.id === conversationData.conversation.phoneNumberId);
+        if (!sender) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "This conversation has no assigned sending number" });
+        }
+        const accountSid = (ctx.user as any).twilioAccountSid;
+        const authToken = (ctx.user as any).twilioAuthToken;
+        if (!accountSid || !authToken) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "TextGrid credentials are not configured" });
+        }
+
+        const providerResult = await sendTextGridSms({
+          accountSid,
+          authToken,
+          from: sender.phoneNumber,
+          to: conversationData.contact.phone,
+          body: input.body,
+        });
+        if (!providerResult) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "TextGrid did not confirm the message send" });
+        }
+
         await createMessage({
           conversationId: input.conversationId,
           userId: ctx.user.id,
           direction: "outbound",
           body: input.body,
+          twilioSid: providerResult.sid,
           status: "sent",
           isAiGenerated: input.isAiGenerated ?? false,
         });
@@ -2567,16 +2665,6 @@ ${transcript}`,
       }),
   }),
 
-  // ─── Twilio Webhook (public) ────────────────────────────────────────────────────────────
-  twilio: router({
-    inboundWebhook: publicProcedure
-      .input(z.object({ From: z.string(), To: z.string(), Body: z.string(), MessageSid: z.string() }))
-      .mutation(async ({ input }) => {
-        // Find user by phone number, create inbound message
-        // This is handled by the Express route in index.ts for proper Twilio webhook validation
-        return { success: true };
-      }),
-  }),
 });
 
 export type AppRouter = typeof appRouter;

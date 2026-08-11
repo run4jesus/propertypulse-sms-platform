@@ -668,3 +668,14 @@
 - [x] Show clear visual state (orange = paused, green = resume)
 - [x] Update smsEngine inbound handler to skip AI reply when conversation.aiPaused = true — only affects that conversation, not others
 - [x] Button label: "Pause AI" when active, "Resume AI Agent" when paused
+
+## Production Reliability & Security Hardening
+
+- [x] Audit all inbound SMS and delivery-status webhook authentication, payload validation, and duplicate-event handling
+- [x] Replace in-process AI reply delays with durable database-backed scheduled replies
+- [x] Add exactly-once guardrails for queued AI replies and outbound send attempts
+- [x] Verify user ownership/authorization checks for conversations, contacts, lists, campaigns, and messages
+- [x] Review secrets exposure, log redaction, and server-only access for TextGrid, OpenAI, Podio, and TCPA credentials
+- [x] Add tests for delayed-reply persistence, duplicate webhooks, and cross-user access denial
+- [ ] Add operational failure visibility for pending AI replies, failed sends, and webhook errors
+- [x] Produce a controlled-pilot launch checklist and hardening findings report
