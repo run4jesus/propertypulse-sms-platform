@@ -697,3 +697,10 @@
 - [x] Permit Workspace Admin members to operate the owner's full workspace without sharing credentials
 - [x] Add role selection, role display, and role-change controls in Team Access
 - [x] Verify Workspace Admin and Messenger Only permission behavior
+
+## AI Training Persistence and Team Access Fix
+
+- [x] Diagnose why AI Training configuration does not reload after Save
+- [x] Persist AI Training configuration to the owner's workspace reliably
+- [x] Ensure Workspace Admin members load and update the owner's shared AI Training configuration
+- [x] Add regression tests for save/reload and owner/admin access behavior

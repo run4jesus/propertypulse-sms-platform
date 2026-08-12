@@ -123,7 +123,7 @@ import {
   getGoal, upsertGoal,
 } from "./db-bos";
 import { and, eq, sql } from "drizzle-orm";
-import { contacts, contactManagement as contactManagementTable, contactListMembers, contactLists, phoneNumbers as phoneNumbersTable, litigatorNumbers as litigatorNumbersTable, teamInvitations, teamMembers } from "../drizzle/schema";
+import { contacts, contactManagement as contactManagementTable, contactListMembers, contactLists, phoneNumbers as phoneNumbersTable, litigatorNumbers as litigatorNumbersTable, teamInvitations, teamMembers, users } from "../drizzle/schema";
 
 export const appRouter = router({
   system: systemRouter,
@@ -228,6 +228,24 @@ export const appRouter = router({
 
   // ─── Settings ──────────────────────────────────────────────────────────────
   settings: router({
+    getAiTraining: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const [user] = await db.select({
+        aiPersona: users.aiPersona,
+        aiTone: users.aiTone,
+        aiBusinessContext: users.aiBusinessContext,
+        aiExamples: users.aiExamples,
+        aiObjectionHandling: users.aiObjectionHandling,
+        aiStageInstructions: users.aiStageInstructions,
+        aiForbiddenPhrases: users.aiForbiddenPhrases,
+        aiReplyDelayFirstMin: users.aiReplyDelayFirstMin,
+        aiReplyDelayFirstMax: users.aiReplyDelayFirstMax,
+        aiReplyDelayFollowMin: users.aiReplyDelayFollowMin,
+        aiReplyDelayFollowMax: users.aiReplyDelayFollowMax,
+      }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      return user ?? null;
+    }),
     updateAiMode: protectedProcedure
       .input(z.object({ enabled: z.boolean() }))
       .mutation(async ({ ctx, input }) => {

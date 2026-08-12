@@ -75,8 +75,8 @@ function Section({
 // ─── Main page ───────────────────────────────────────────────────────────────
 export default function AITraining() {
   const utils = trpc.useUtils();
-  const { data: me } = trpc.auth.me.useQuery();
-  const u = me as any;
+  const { data: training } = trpc.settings.getAiTraining.useQuery();
+  const u = training as any;
 
   // ── Persona & Tone ──
   const [persona, setPersona] = useState("");
@@ -134,11 +134,11 @@ export default function AITraining() {
     if (u.aiReplyDelayFirstMax != null) setDelayFirstMax(u.aiReplyDelayFirstMax);
     if (u.aiReplyDelayFollowMin != null) setDelayFollowMin(u.aiReplyDelayFollowMin);
     if (u.aiReplyDelayFollowMax != null) setDelayFollowMax(u.aiReplyDelayFollowMax);
-  }, [u?.id]);
+  }, [training]);
 
   const saveTraining = trpc.settings.updateAiTraining.useMutation({
     onSuccess: () => {
-      utils.auth.me.invalidate();
+      utils.settings.getAiTraining.invalidate();
       toast.success("AI training saved — changes take effect on next reply");
     },
     onError: (e: any) => toast.error(e.message || "Failed to save"),
