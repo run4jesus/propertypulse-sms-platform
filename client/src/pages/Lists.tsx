@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
+import { parseCsv } from "@/lib/csv";
 import {
   List, Upload, Plus, Search, Trash2, ChevronRight, X,
   Phone, RefreshCw, CheckCircle, XCircle, AlertTriangle,
@@ -80,17 +81,6 @@ function PhoneStatusBadge({ status }: { status: PhoneStatus }) {
       {cfg.icon}{cfg.label}
     </span>
   );
-}
-
-// ─── CSV Parser ───────────────────────────────────────────────────────────────
-function parseCsv(text: string): { headers: string[]; rows: string[][] } {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return { headers: [], rows: [] };
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
-  const rows = lines.slice(1).map((line) =>
-    line.split(",").map((cell) => cell.trim().replace(/^"|"$/g, ""))
-  );
-  return { headers, rows };
 }
 
 // ─── Auto-map heuristic ───────────────────────────────────────────────────────

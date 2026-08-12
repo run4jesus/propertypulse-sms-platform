@@ -704,3 +704,9 @@
 - [x] Persist AI Training configuration to the owner's workspace reliably
 - [x] Ensure Workspace Admin members load and update the owner's shared AI Training configuration
 - [x] Add regression tests for save/reload and owner/admin access behavior
+
+## Campaign List Upload Error
+
+- [x] Capture and diagnose the list-upload error that blocks campaign setup
+- [x] Fix the import/upload path and improve actionable error feedback
+- [x] Test list upload through campaign setup after the fix
