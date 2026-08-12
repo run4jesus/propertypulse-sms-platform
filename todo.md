@@ -715,3 +715,10 @@
 
 - [x] Determine the exact duplicate and missing-primary-phone causes for the latest list import
 - [x] Show a clear source-row, imported, duplicate, and missing-phone breakdown after every list import
+
+## Fallback Phone Import
+
+- [x] Preserve leads with a blank Phone 1 by promoting Phone 2 or Phone 3 to the primary sendable phone
+- [x] Retain remaining phone values in their appropriate secondary slots after promotion
+- [x] Report promoted fallback-phone leads and truly phoneless rows after import
+- [x] Add regression tests for Phone 2 / Phone 3 fallback imports

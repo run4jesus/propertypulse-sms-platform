@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { parseCsv } from "@/lib/csv";
+import { organizeImportPhones } from "@/lib/contactImport";
 import {
   List, Upload, Plus, Search, Trash2, ChevronRight, X,
   Phone, RefreshCw, CheckCircle, XCircle, AlertTriangle,
@@ -153,8 +154,8 @@ function ImportModal({
   };
 
   const handleImport = async () => {
-    if (!mapping.phone) {
-      toast.error("Phone 1 is required — map at least the primary phone column.");
+    if (!mapping.phone && !mapping.phone2 && !mapping.phone3) {
+      toast.error("Map at least one phone column — Phone 1, Phone 2, or Phone 3.");
       return;
     }
     setStep("importing");
@@ -162,14 +163,17 @@ function ImportModal({
     const headerIndex = (col: string | undefined) =>
       col ? csvHeaders.indexOf(col) : -1;
 
-    const contactData = csvRows
+    const mappedRows = csvRows
       .map((row) => {
         const get = (col: string | undefined) => {
           const idx = headerIndex(col);
           return idx >= 0 ? (row[idx] ?? "").trim() : undefined;
         };
-        const phone = get(mapping.phone);
-        if (!phone) return null;
+        const originalPhone1 = get(mapping.phone);
+        const originalPhone2 = get(mapping.phone2);
+        const originalPhone3 = get(mapping.phone3);
+        const organizedPhones = organizeImportPhones(originalPhone1, originalPhone2, originalPhone3);
+        if (!organizedPhones.phone) return null;
 
         // Strip middle initials from first names
         const stripMiddle = (name?: string) => name?.replace(/\s+[A-Z]\s*$/, "").trim() || undefined;
@@ -177,32 +181,38 @@ function ImportModal({
         const zip5 = (z?: string) => z?.replace(/[^0-9]/g, "").slice(0, 5) || undefined;
 
         return {
-          firstName:       stripMiddle(get(mapping.firstName)),
-          lastName:        get(mapping.lastName) || undefined,
-          owner2FirstName: stripMiddle(get(mapping.owner2FirstName)),
-          owner2LastName:  get(mapping.owner2LastName) || undefined,
-          propertyAddress: get(mapping.propertyAddress) || undefined,
-          propertyCity:    get(mapping.propertyCity) || undefined,
-          propertyState:   get(mapping.propertyState) || undefined,
-          propertyZip:     zip5(get(mapping.propertyZip)),
-          mailingAddress:  get(mapping.mailingAddress) || undefined,
-          mailingCity:     get(mapping.mailingCity) || undefined,
-          mailingState:    get(mapping.mailingState) || undefined,
-          mailingZip:      zip5(get(mapping.mailingZip)),
-          phone,
-          phone2:          get(mapping.phone2) || undefined,
-          phone3:          get(mapping.phone3) || undefined,
+          promotedFromFallback: organizedPhones.promotedFromFallback,
+          contact: {
+            firstName:       stripMiddle(get(mapping.firstName)),
+            lastName:        get(mapping.lastName) || undefined,
+            owner2FirstName: stripMiddle(get(mapping.owner2FirstName)),
+            owner2LastName:  get(mapping.owner2LastName) || undefined,
+            propertyAddress: get(mapping.propertyAddress) || undefined,
+            propertyCity:    get(mapping.propertyCity) || undefined,
+            propertyState:   get(mapping.propertyState) || undefined,
+            propertyZip:     zip5(get(mapping.propertyZip)),
+            mailingAddress:  get(mapping.mailingAddress) || undefined,
+            mailingCity:     get(mapping.mailingCity) || undefined,
+            mailingState:    get(mapping.mailingState) || undefined,
+            mailingZip:      zip5(get(mapping.mailingZip)),
+            phone:           organizedPhones.phone,
+            phone2:          organizedPhones.phone2,
+            phone3:          organizedPhones.phone3,
+          },
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
-    const missingPrimaryPhoneCount = csvRows.length - contactData.length;
+    const contactData = mappedRows.map((row) => row.contact);
+    const promotedFallbackPhoneCount = mappedRows.filter((row) => row.promotedFromFallback).length;
+    const noUsablePhoneCount = csvRows.length - contactData.length;
 
     try {
       const result = await bulkImport.mutateAsync({ contacts: contactData as Parameters<typeof bulkImport.mutateAsync>[0]["contacts"], listId });
       await utils.contactLists.list.invalidate();
       await utils.contactLists.getMembers.invalidate();
       const exclusions = [
-        missingPrimaryPhoneCount > 0 ? `${missingPrimaryPhoneCount} without Phone 1` : null,
+        promotedFallbackPhoneCount > 0 ? `${promotedFallbackPhoneCount} promoted from Phone 2 or 3` : null,
+        noUsablePhoneCount > 0 ? `${noUsablePhoneCount} without a usable phone` : null,
         result.skipped > 0 ? `${result.skipped} duplicate or existing numbers` : null,
       ].filter(Boolean);
       toast.success(
@@ -306,7 +316,7 @@ function ImportModal({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => { reset(); onClose(); }}>Cancel</Button>
-              <Button onClick={handleImport} disabled={!mapping.phone}>
+              <Button onClick={handleImport} disabled={!mapping.phone && !mapping.phone2 && !mapping.phone3}>
                 Import {csvRows.length.toLocaleString()} contacts
               </Button>
             </DialogFooter>
