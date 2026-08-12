@@ -157,6 +157,18 @@ export const contacts = mysqlTable("contacts", {
   phone1LineType: mysqlEnum("phone1LineType", ["mobile", "landline", "voip", "unknown"]).default("unknown").notNull(),
   phone2LineType: mysqlEnum("phone2LineType", ["mobile", "landline", "voip", "unknown"]).default("unknown").notNull(),
   phone3LineType: mysqlEnum("phone3LineType", ["mobile", "landline", "voip", "unknown"]).default("unknown").notNull(),
+  phone1ActivityScore: int("phone1ActivityScore"),
+  phone2ActivityScore: int("phone2ActivityScore"),
+  phone3ActivityScore: int("phone3ActivityScore"),
+  phone1Carrier: varchar("phone1Carrier", { length: 255 }),
+  phone2Carrier: varchar("phone2Carrier", { length: 255 }),
+  phone3Carrier: varchar("phone3Carrier", { length: 255 }),
+  phone1IsValid: boolean("phone1IsValid"),
+  phone2IsValid: boolean("phone2IsValid"),
+  phone3IsValid: boolean("phone3IsValid"),
+  phone1ClassifiedAt: timestamp("phone1ClassifiedAt"),
+  phone2ClassifiedAt: timestamp("phone2ClassifiedAt"),
+  phone3ClassifiedAt: timestamp("phone3ClassifiedAt"),
   notes: text("notes"),
   optedOut: boolean("optedOut").default(false).notNull(),
   // DNC / Litigator scrub results
@@ -187,6 +199,31 @@ export const contactListMembers = mysqlTable("contact_list_members", {
   id: int("id").autoincrement().primaryKey(),
   contactId: int("contactId").notNull(),
   listId: int("listId").notNull(),
+});
+
+// ─── Phone Intelligence Cache & Jobs ─────────────────────────────────────────
+export const phoneIntelligenceCache = mysqlTable("phone_intelligence_cache", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  phone: varchar("phone", { length: 20 }).notNull(),
+  lineType: mysqlEnum("lineType", ["mobile", "landline", "voip", "unknown"]).default("unknown").notNull(),
+  activityScore: int("activityScore"),
+  carrier: varchar("carrier", { length: 255 }),
+  isValid: boolean("isValid"),
+  classifiedAt: timestamp("classifiedAt").defaultNow().notNull(),
+});
+
+export const phoneClassificationJobs = mysqlTable("phone_classification_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  listId: int("listId").notNull(),
+  status: mysqlEnum("status", ["pending", "processing", "completed", "failed"]).default("pending").notNull(),
+  totalPhones: int("totalPhones").notNull(),
+  processedPhones: int("processedPhones").default(0).notNull(),
+  estimatedCost: float("estimatedCost").notNull(),
+  error: text("error"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
 });
 
 // ─── Conversations ────────────────────────────────────────────────────────────

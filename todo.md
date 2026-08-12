@@ -722,3 +722,33 @@
 - [x] Retain remaining phone values in their appropriate secondary slots after promotion
 - [x] Report promoted fallback-phone leads and truly phoneless rows after import
 - [x] Add regression tests for Phone 2 / Phone 3 fallback imports
+
+## Full Multi-Number Lead Import and Sending
+
+- [ ] Retain all distinct Phone 1, Phone 2, and Phone 3 values for every imported lead
+- [ ] Prevent an existing or duplicate primary phone from discarding new secondary or tertiary numbers
+- [ ] Add an All Available Numbers campaign send mode with per-number compliance and duplicate-send safeguards
+- [ ] Test multi-number import and campaign delivery selection end to end
+
+## First Eligible Mobile Campaign Targeting
+
+- [x] Select one campaign target per lead in Phone 1 → Phone 2 → Phone 3 order
+- [x] Skip confirmed landline and VoIP numbers while using mobile/unknown candidates safely
+- [x] Show first-eligible-mobile behavior in campaign setup and scrub preview
+- [x] Add regression tests for mobile, landline, VoIP, and unknown-number selection
+- [x] Show confirmed-mobile, unknown/pending, landline/VoIP-excluded, and total eligible target counts in campaign setup
+
+## Confirmed Phone Classification After Import
+
+- [x] Show a per-list unique-phone lookup estimate and cost before paid classification
+- [x] Require the user to confirm the displayed estimate before any paid lookup begins
+- [x] Persist Mobile, Landline, VoIP, and Unknown labels for each Phone 1/2/3 value
+- [x] Show classification progress and final line-type counts after the scan
+- [x] Offer classification after every successful list import and for existing lists
+
+## Trestle Phone Intelligence Integration
+
+- [x] Securely store and validate the Trestle Phone Intelligence API key
+- [x] Save Trestle mobile/landline/VoIP, activity score, carrier, and validity data per phone slot
+- [x] Add user-confirmed estimate, progress, and classification results for uploaded and existing lists
+- [x] Use classified mobile targets for first-eligible-mobile campaign sends

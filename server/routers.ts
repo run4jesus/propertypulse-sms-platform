@@ -5,6 +5,8 @@ import { randomUUID } from "crypto";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { ENV } from "./_core/env";
 import { callOpenAI } from "./openai";
+import { selectCampaignTargetPhone } from "./campaignTarget";
+import { getClassificationEstimate, getClassificationJob, startClassificationJob } from "./phoneClassification";
 import { systemRouter } from "./_core/systemRouter";
 import { messengerProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import {
@@ -323,6 +325,33 @@ export const appRouter = router({
         await updateUserAiTraining(ctx.user.id, input);
         return { success: true };
       }),
+  }),
+
+  // ─── Phone Intelligence ─────────────────────────────────────────────────────
+  phoneIntelligence: router({
+    estimate: protectedProcedure
+      .input(z.object({ listId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+        const [list] = await db.select({ id: contactLists.id }).from(contactLists)
+          .where(and(eq(contactLists.id, input.listId), eq(contactLists.userId, ctx.user.id))).limit(1);
+        if (!list) throw new TRPCError({ code: "FORBIDDEN", message: "List not found" });
+        return getClassificationEstimate(ctx.user.id, input.listId);
+      }),
+    confirm: protectedProcedure
+      .input(z.object({ listId: z.number(), approved: z.literal(true) }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+        const [list] = await db.select({ id: contactLists.id }).from(contactLists)
+          .where(and(eq(contactLists.id, input.listId), eq(contactLists.userId, ctx.user.id))).limit(1);
+        if (!list) throw new TRPCError({ code: "FORBIDDEN", message: "List not found" });
+        return startClassificationJob(ctx.user.id, input.listId);
+      }),
+    job: protectedProcedure
+      .input(z.object({ listId: z.number() }))
+      .query(async ({ ctx, input }) => getClassificationJob(ctx.user.id, input.listId)),
   }),
 
   // ─── Phone Numbers ──────────────────────────────────────────────────────────
@@ -1248,7 +1277,7 @@ export const appRouter = router({
         aiOffersEnabled: z.boolean().default(false),
         dailySendCap: z.number().min(1).optional(),
         columnMapping: z.record(z.string(), z.string()).optional(),
-        phoneField: z.enum(["phone", "phone2", "phone3"]).default("phone"),
+        phoneField: z.enum(["phone", "phone2", "phone3", "first_eligible_mobile"]).default("first_eligible_mobile"),
       }))
       .mutation(async ({ ctx, input }) => {
         const { steps, scheduledAt, ...campaignData } = input;
@@ -1294,7 +1323,7 @@ export const appRouter = router({
         steps: z.array(z.object({ stepNumber: z.number(), body: z.string(), delayDays: z.number(), delayHours: z.number() })).optional(),
         dailySendCap: z.number().min(1).nullable().optional(),
         columnMapping: z.record(z.string(), z.string()).optional(),
-        phoneField: z.enum(["phone", "phone2", "phone3"]).optional(),
+        phoneField: z.enum(["phone", "phone2", "phone3", "first_eligible_mobile"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const { id, steps, scheduledAt, ...data } = input;
@@ -1333,7 +1362,7 @@ export const appRouter = router({
         scrubLitigators: z.boolean().default(true),
         scrubFederalDnc: z.boolean().default(false),
         scrubExistingContacts: z.boolean().default(false),
-        phoneField: z.enum(["phone", "phone2", "phone3"]).default("phone"),
+        phoneField: z.enum(["phone", "phone2", "phone3", "first_eligible_mobile"]).default("first_eligible_mobile"),
       }))
       .query(async ({ ctx, input }) => {
         const db = await getDb();
@@ -1356,14 +1385,14 @@ export const appRouter = router({
         let removedFederalDnc = 0;
         let removedExisting = 0;
         let removedNonMobile = 0;
+        let confirmedMobileTargets = 0;
+        let unknownTargets = 0;
+        let noEligiblePhone = 0;
 
         for (const { contact } of listContacts) {
-          // Check if the selected phone field is non-mobile (landline/voip)
-          const lineTypeField = input.phoneField === "phone2" ? "phone2LineType"
-            : input.phoneField === "phone3" ? "phone3LineType"
-            : "phone1LineType";
-          const lineType = (contact as any)[lineTypeField] ?? "unknown";
-          if (lineType === "landline" || lineType === "voip") { removedNonMobile++; continue; }
+          const target = selectCampaignTargetPhone(contact, input.phoneField);
+          if (!target) { removedNonMobile++; noEligiblePhone++; continue; }
+          const targetPhone = target.phone!;
 
           // Always count opted-out
           if (contact.optedOut) { removedOptedOut++; continue; }
@@ -1382,7 +1411,7 @@ export const appRouter = router({
               .from(contactManagementTable)
               .where(and(
                 eq(contactManagementTable.userId, ctx.user.id),
-                eq(contactManagementTable.phone, contact.phone),
+                eq(contactManagementTable.phone, targetPhone),
                 eq(contactManagementTable.listType, "dnc")
               )).limit(1);
             if (inDnc) { removedInternalDnc++; continue; }
@@ -1393,7 +1422,7 @@ export const appRouter = router({
             .from(contactManagementTable)
             .where(and(
               eq(contactManagementTable.userId, ctx.user.id),
-              eq(contactManagementTable.phone, contact.phone),
+              eq(contactManagementTable.phone, targetPhone),
               eq(contactManagementTable.listType, "opted_out")
             )).limit(1);
           if (optedOut) { removedOptedOut++; continue; }
@@ -1404,11 +1433,14 @@ export const appRouter = router({
               .from(contacts)
               .where(and(
                 eq(contacts.userId, ctx.user.id),
-                eq(contacts.phone, contact.phone),
+                eq(contacts.phone, targetPhone),
                 sql`${contacts.id} != ${contact.id}`
               )).limit(1);
             if (existing) { removedExisting++; continue; }
           }
+
+          if (target.lineType === "mobile") confirmedMobileTargets++;
+          else unknownTargets++;
         }
 
         const totalRemoved = removedNonMobile + removedOptedOut + removedInternalDnc + removedLitigators + removedFederalDnc + removedExisting;
@@ -1421,6 +1453,9 @@ export const appRouter = router({
           removedLitigators,
           removedFederalDnc,
           removedExisting,
+          confirmedMobileTargets,
+          unknownTargets,
+          noEligiblePhone,
         };
       }),
 

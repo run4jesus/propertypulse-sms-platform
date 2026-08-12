@@ -33,6 +33,7 @@ import {
   parseInboundSmsPayload,
 } from "./webhookSecurity";
 import { claimWebhookEvent, releaseWebhookEvent } from "./webhookEvents";
+import { selectCampaignTargetPhone } from "./campaignTarget";
 
 // ─── Opt-out keywords ────────────────────────────────────────────────────────
 const OPT_OUT_KEYWORDS = ["stop", "unsubscribe", "quit", "cancel", "end", "stopall", "remove"];
@@ -962,23 +963,15 @@ export async function processCampaignBatches() {
         const rotationIndex = sentCount % rotationPhones.length;
         const fromPhone = rotationPhones[rotationIndex];
 
-        // Pick the correct phone field based on campaign phoneField setting
-        const phoneField = (campaign as any).phoneField ?? "phone";
-        const toPhone = phoneField === "phone2" ? (contact.phone2 ?? null)
-          : phoneField === "phone3" ? (contact.phone3 ?? null)
-          : contact.phone;
-        if (!toPhone) continue;
-
-        // Skip non-mobile numbers (landline/voip) — always filtered for SMS campaigns
-        const lineTypeField = phoneField === "phone2" ? "phone2LineType"
-          : phoneField === "phone3" ? "phone3LineType"
-          : "phone1LineType";
-        const lineType = (contact as any)[lineTypeField] ?? "unknown";
-        // Only skip if we have confirmed it's a landline or voip — unknown passes through
-        if (lineType === "landline" || lineType === "voip") {
-          console.log(`[BatchEngine] Skipping non-mobile ${toPhone} (${lineType}) for contact ${contact.id}`);
+        const target = selectCampaignTargetPhone(
+          contact,
+          ((campaign as any).phoneField ?? "first_eligible_mobile") as any,
+        );
+        if (!target) {
+          console.log(`[BatchEngine] Skipping contact ${contact.id}: no eligible mobile/unknown phone number`);
           continue;
         }
+        const toPhone = target.phone!;
 
         // Send the SMS
         const result = await sendSms({

@@ -9,6 +9,7 @@ import type { Request, Response } from "express";
 import { sdk } from "./_core/sdk";
 import { processAiReplyQueue } from "./aiReplyQueue";
 import { processCampaignBatches } from "./smsEngine";
+import { processPhoneClassificationJobs } from "./phoneClassification";
 
 export async function smsDispatchHandler(req: Request, res: Response) {
   try {
@@ -19,10 +20,12 @@ export async function smsDispatchHandler(req: Request, res: Response) {
 
     await processCampaignBatches();
     const aiReplies = await processAiReplyQueue();
+    const classifications = await processPhoneClassificationJobs();
 
     return res.json({
       ok: true,
       aiReplies,
+      classifications,
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {

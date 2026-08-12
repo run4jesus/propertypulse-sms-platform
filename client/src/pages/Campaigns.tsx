@@ -168,7 +168,7 @@ export default function Campaigns() {
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<number[]>([]);
   const [sendMode, setSendMode] = useState<"automated" | "manual">("automated");
   const [campaignCategory, setCampaignCategory] = useState<"land" | "house">("house");
-  const [phoneField, setPhoneField] = useState<"phone" | "phone2" | "phone3">("phone");
+  const [phoneField, setPhoneField] = useState<"phone" | "phone2" | "phone3" | "first_eligible_mobile">("first_eligible_mobile");
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
   const [, navigate] = useLocation();
   const [steps, setSteps] = useState<Step[]>([
@@ -254,7 +254,7 @@ export default function Campaigns() {
     setFollowUpMessage("Thanks for your time! If anything changes on your end, feel free to reach out.");
     setSendMode("automated");
     setCampaignCategory("house");
-    setPhoneField("phone");
+    setPhoneField("first_eligible_mobile");
     setColumnMapping({});
     setSelectedTemplateIds([]);
     setSteps([{ stepNumber: 1, body: "", delayDays: 0, delayHours: 0 }]);
@@ -392,7 +392,7 @@ export default function Campaigns() {
 
                 <div>
                   <Label className="text-xs">Contact List</Label>
-                  <Select value={listId} onValueChange={(v) => { setListId(v); setColumnMapping({}); setPhoneField("phone"); }}>
+                  <Select value={listId} onValueChange={(v) => { setListId(v); setColumnMapping({}); setPhoneField("first_eligible_mobile"); }}>
                     <SelectTrigger className="mt-1">
                       <SelectValue placeholder="Select a list..." />
                     </SelectTrigger>
@@ -421,6 +421,17 @@ export default function Campaigns() {
                         <Phone className="h-3 w-3 text-primary" />
                         <Label className="text-xs font-medium">Send to which phone number?</Label>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setPhoneField("first_eligible_mobile")}
+                        className={`mb-1.5 w-full rounded-md border py-1.5 px-2 text-xs font-medium transition-colors ${
+                          phoneField === "first_eligible_mobile"
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                        }`}
+                      >
+                        First Eligible Mobile — Phone 1 → Phone 2 → Phone 3
+                      </button>
                       <div className="grid grid-cols-3 gap-1.5">
                         {(["phone", "phone2", "phone3"] as const).map((field) => (
                           <button
@@ -437,7 +448,9 @@ export default function Campaigns() {
                           </button>
                         ))}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">Contacts without the selected phone will be skipped</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        First Eligible Mobile prefers a confirmed mobile number, skips confirmed landline/VoIP, and uses an unclassified number only while lookup is pending.
+                      </p>
                     </div>
 
                     {/* Column mapping for merge fields */}
@@ -735,6 +748,16 @@ export default function Campaigns() {
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs text-muted-foreground">Total contacts in list</span>
                           <span className="text-xs font-medium">{scrubPreview.total.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Phone className="h-3 w-3 text-green-600" /> Confirmed mobile targets
+                          </span>
+                          <span className="text-xs text-green-600 font-medium">{(scrubPreview as any).confirmedMobileTargets.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Unknown / lookup pending targets</span>
+                          <span className="text-xs text-amber-600 font-medium">{(scrubPreview as any).unknownTargets.toLocaleString()}</span>
                         </div>
                         {(scrubPreview as any).removedNonMobile > 0 && (
                           <div className="flex items-center justify-between">

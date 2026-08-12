@@ -31,6 +31,9 @@ interface ContactRow {
   phone: string;
   phone2?: string | null;
   phone3?: string | null;
+  phone1LineType?: "mobile" | "landline" | "voip" | "unknown";
+  phone2LineType?: "mobile" | "landline" | "voip" | "unknown";
+  phone3LineType?: "mobile" | "landline" | "voip" | "unknown";
   phone1Status: PhoneStatus;
   phone2Status: PhoneStatus;
   phone3Status: PhoneStatus;
@@ -121,13 +124,14 @@ function autoMap(headers: string[]): Record<CsvFieldKey, string> {
 
 // ─── Import Modal ─────────────────────────────────────────────────────────────
 function ImportModal({
-  open, onClose, listId, listName, onSuccess,
+  open, onClose, listId, listName, onSuccess, onClassify,
 }: {
   open: boolean;
   onClose: () => void;
   listId: number;
   listName: string;
   onSuccess: () => void;
+  onClassify?: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<"upload" | "map" | "importing">("upload");
@@ -219,6 +223,7 @@ function ImportModal({
         `Import complete — ${result.count} contacts added${exclusions.length ? `. Skipped: ${exclusions.join(", ")}` : ""}.`
       );
       onSuccess();
+      onClassify?.();
       onClose();
     } catch {
       toast.error("Import failed — check your CSV and try again.");
@@ -456,6 +461,69 @@ function ComplianceCheckModal({
   );
 }
 
+function PhoneClassificationDialog({
+  open, onClose, listId, listName,
+}: { open: boolean; onClose: () => void; listId: number; listName: string }) {
+  const utils = trpc.useUtils();
+  const { data: estimate, isLoading: estimateLoading } = trpc.phoneIntelligence.estimate.useQuery(
+    { listId }, { enabled: open }
+  );
+  const { data: job } = trpc.phoneIntelligence.job.useQuery(
+    { listId }, { enabled: open, refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "pending" || status === "processing" ? 2000 : false;
+    } }
+  );
+  const confirm = trpc.phoneIntelligence.confirm.useMutation({
+    onSuccess: () => {
+      toast.success("Phone classification started. You can leave this page while it runs.");
+      utils.phoneIntelligence.job.invalidate({ listId });
+      utils.phoneIntelligence.estimate.invalidate({ listId });
+    },
+    onError: () => toast.error("Could not start phone classification."),
+  });
+
+  const active = job?.status === "pending" || job?.status === "processing";
+  const complete = job?.status === "completed";
+  const total = job?.totalPhones ?? estimate?.phonesToClassify ?? 0;
+  const processed = job?.processedPhones ?? 0;
+  const progress = total ? Math.round((processed / total) * 100) : 100;
+
+  return (
+    <Dialog open={open} onOpenChange={(value) => { if (!value && !active) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Classify Phone Numbers</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-sm text-muted-foreground">Classify Phone 1–3 on <strong className="text-foreground">{listName}</strong> as Mobile, Landline, VoIP, or Unknown before creating a campaign.</p>
+          {estimateLoading ? <p className="text-sm text-muted-foreground">Calculating unique numbers and estimated cost…</p> : active ? (
+            <>
+              <div className="flex items-center justify-between text-sm"><span>Classification progress</span><strong>{processed.toLocaleString()} / {total.toLocaleString()}</strong></div>
+              <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} /></div>
+              <p className="text-xs text-muted-foreground">{progress}% complete. Numbers are labeled as each batch finishes.</p>
+            </>
+          ) : complete || !estimate?.phonesToClassify ? (
+            <div className="rounded-lg border border-green-500/25 bg-green-500/10 p-3 text-sm text-green-700 dark:text-green-300"><strong>Classification complete.</strong> All currently uncached numbers on this list have been labeled.</div>
+          ) : (
+            <>
+              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Unique numbers on list</span><strong>{estimate.totalPhones.toLocaleString()}</strong></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Already classified</span><strong>{estimate.alreadyClassified.toLocaleString()}</strong></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">New lookups needed</span><strong>{estimate.phonesToClassify.toLocaleString()}</strong></div>
+                <div className="flex justify-between border-t border-border pt-2"><span className="font-medium">Estimated Trestle cost</span><strong>${estimate.estimatedCost.toFixed(2)}</strong></div>
+              </div>
+              <p className="text-xs text-muted-foreground">No lookup starts until you confirm this estimate. Results include line type, activity score, carrier, and validity status.</p>
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          {!active && <Button variant="outline" onClick={onClose}>Close</Button>}
+          {!active && !complete && !!estimate?.phonesToClassify && <Button onClick={() => confirm.mutate({ listId, approved: true })} disabled={confirm.isPending}>{confirm.isPending ? "Starting…" : `Confirm $${estimate.estimatedCost.toFixed(2)} & Classify`}</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── List Detail View ─────────────────────────────────────────────────────────
 function ListDetail({
   listId, listName, onBack,
@@ -467,6 +535,7 @@ function ListDetail({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [importOpen, setImportOpen] = useState(false);
+  const [classifyOpen, setClassifyOpen] = useState(false);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 100;
 
@@ -519,6 +588,9 @@ function ListDetail({
         </div>
         <Button size="sm" onClick={() => setImportOpen(true)} className="gap-1">
           <Upload className="h-4 w-4" /> Import CSV
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setClassifyOpen(true)} className="gap-1">
+          <Phone className="h-4 w-4" /> Classify Numbers
         </Button>
       </div>
 
@@ -620,6 +692,7 @@ function ListDetail({
                       <PhoneCell
                         phone={c.phone}
                         status={c.phone1Status}
+                        lineType={c.phone1LineType}
                         onStatusChange={(s) => updateStatus.mutate({ contactId: c.id, phoneSlot: 1, status: s })}
                       />
                     </td>
@@ -628,6 +701,7 @@ function ListDetail({
                         <PhoneCell
                           phone={c.phone2}
                           status={c.phone2Status}
+                          lineType={c.phone2LineType}
                           onStatusChange={(s) => updateStatus.mutate({ contactId: c.id, phoneSlot: 2, status: s })}
                         />
                       ) : <span className="text-muted-foreground">—</span>}
@@ -637,6 +711,7 @@ function ListDetail({
                         <PhoneCell
                           phone={c.phone3}
                           status={c.phone3Status}
+                          lineType={c.phone3LineType}
                           onStatusChange={(s) => updateStatus.mutate({ contactId: c.id, phoneSlot: 3, status: s })}
                         />
                       ) : <span className="text-muted-foreground">—</span>}
@@ -667,22 +742,32 @@ function ListDetail({
         listId={listId}
         listName={listName}
         onSuccess={() => refetch()}
+        onClassify={() => setClassifyOpen(true)}
       />
+      <PhoneClassificationDialog open={classifyOpen} onClose={() => setClassifyOpen(false)} listId={listId} listName={listName} />
     </div>
   );
 }
 
 // ─── Phone Cell with status dropdown ─────────────────────────────────────────
 function PhoneCell({
-  phone, status, onStatusChange,
+  phone, status, lineType = "unknown", onStatusChange,
 }: {
   phone: string;
   status: PhoneStatus;
+  lineType?: "mobile" | "landline" | "voip" | "unknown";
   onStatusChange: (s: PhoneStatus) => void;
 }) {
+  const lineTypeStyle = {
+    mobile: "bg-green-500/15 text-green-700 dark:text-green-300",
+    landline: "bg-red-500/15 text-red-700 dark:text-red-300",
+    voip: "bg-orange-500/15 text-orange-700 dark:text-orange-300",
+    unknown: "bg-muted text-muted-foreground",
+  }[lineType];
   return (
     <div className="space-y-1 min-w-[140px]">
       <p className="text-xs font-mono">{phone}</p>
+      <span className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium capitalize ${lineTypeStyle}`}>{lineType === "voip" ? "VoIP" : lineType}</span>
       <Select value={status} onValueChange={(v) => onStatusChange(v as PhoneStatus)}>
         <SelectTrigger className="h-6 text-xs px-2 py-0 border-0 bg-transparent p-0 w-auto gap-1 focus:ring-0">
           <PhoneStatusBadge status={status} />
@@ -706,6 +791,7 @@ export default function Lists() {
   const [selectedList, setSelectedList] = useState<{ id: number; name: string } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState<{ id: number; name: string } | null>(null);
+  const [classifyTarget, setClassifyTarget] = useState<{ id: number; name: string } | null>(null);
   const [newListName, setNewListName] = useState("");
   const [search, setSearch] = useState("");
 
@@ -868,8 +954,10 @@ export default function Lists() {
           listId={importOpen.id}
           listName={importOpen.name}
           onSuccess={() => refetch()}
+          onClassify={() => setClassifyTarget(importOpen)}
         />
       )}
+      {classifyTarget && <PhoneClassificationDialog open={!!classifyTarget} onClose={() => setClassifyTarget(null)} listId={classifyTarget.id} listName={classifyTarget.name} />}
     </DashboardLayout>
   );
 }
