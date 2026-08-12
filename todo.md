@@ -710,3 +710,8 @@
 - [x] Capture and diagnose the list-upload error that blocks campaign setup
 - [x] Fix the import/upload path and improve actionable error feedback
 - [x] Test list upload through campaign setup after the fix
+
+## Import Count Transparency
+
+- [x] Determine the exact duplicate and missing-primary-phone causes for the latest list import
+- [x] Show a clear source-row, imported, duplicate, and missing-phone breakdown after every list import

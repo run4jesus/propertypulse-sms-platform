@@ -195,12 +195,19 @@ function ImportModal({
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
+    const missingPrimaryPhoneCount = csvRows.length - contactData.length;
 
     try {
       const result = await bulkImport.mutateAsync({ contacts: contactData as Parameters<typeof bulkImport.mutateAsync>[0]["contacts"], listId });
       await utils.contactLists.list.invalidate();
       await utils.contactLists.getMembers.invalidate();
-      toast.success(`Import complete — ${result.count} contacts added${result.skipped > 0 ? `, ${result.skipped} duplicates skipped` : ""}.`);
+      const exclusions = [
+        missingPrimaryPhoneCount > 0 ? `${missingPrimaryPhoneCount} without Phone 1` : null,
+        result.skipped > 0 ? `${result.skipped} duplicate or existing numbers` : null,
+      ].filter(Boolean);
+      toast.success(
+        `Import complete — ${result.count} contacts added${exclusions.length ? `. Skipped: ${exclusions.join(", ")}` : ""}.`
+      );
       onSuccess();
       onClose();
     } catch {
